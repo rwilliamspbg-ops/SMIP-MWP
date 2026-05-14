@@ -36,7 +36,7 @@ The project model is split into two coordinated tracks:
 SMIP is considered production-ready only when all baseline targets are met:
 - **Forwarding throughput:** at least **10 Gbps per node** on commodity hardware baseline (**8+ physical cores, 32 GB RAM, 25 GbE NIC with kernel-bypass support**)
 - **Latency overhead:** less than **1 ms added latency** versus plain UDP in LAN/WAN test profiles
-- **Handshake performance:** full **PQC hybrid handshake under 50 ms** in controlled benchmark profiles (LAN and low-RTT WAN emulation), including key exchange + signature verification + session key confirmation
+- **Handshake performance:** full **PQC hybrid handshake under 50 ms** in controlled benchmark profiles (LAN and low-RTT WAN emulation), including key exchange + signature verification + session key confirmation, validated against baseline CPU crypto acceleration capabilities (AVX2 minimum)
 - **Routing stability:** **zero route flaps** across formally verified topologies
 
 ## Reference Architecture
@@ -94,7 +94,7 @@ Traditional routing tables are replaced/augmented with formally provable route a
 
 ### 7) Cryptography and Identity
 
-- Hybrid key exchange: **x25519 + ML-KEM-768**
+- Hybrid key exchange: **x25519 + ML-KEM-768**, combined via HKDF over concatenated shared secrets for interoperable key schedule derivation
 - Signature scheme baseline: **ML-DSA-65** (with policy-driven upgrade path to stronger parameter sets where required)
 - Perfect forward secrecy for sovereign tunnel sessions
 - zk-SNARKs used periodically for identity and aggregate route attestation, not per-packet
