@@ -34,9 +34,9 @@ The project model is split into two coordinated tracks:
 ## Formal Success Metrics
 
 SMIP is considered production-ready only when all baseline targets are met:
-- **Forwarding throughput:** at least **10 Gbps per node** on commodity hardware baseline (**8+ physical cores, 32 GB RAM, 25 GbE NIC with kernel-bypass support**)
+- **Forwarding throughput:** at least **10 Gbps per node** sustained encrypted forwarding baseline (bidirectional aggregate) on commodity hardware (**8+ physical cores, 32 GB RAM, 25 GbE NIC with kernel-bypass support**), with higher line-rate utilization treated as a stretch target
 - **Latency overhead:** less than **1 ms added latency** versus plain UDP in LAN/WAN test profiles
-- **Handshake performance:** full **PQC hybrid handshake under 50 ms** in controlled benchmark profiles (LAN and low-RTT WAN emulation), including key exchange + signature verification + session key confirmation, validated against baseline CPU crypto acceleration capabilities (AVX2 minimum)
+- **Handshake performance:** full **PQC hybrid handshake under 50 ms** in controlled benchmark profiles (LAN and low-RTT WAN emulation), including key exchange + signature verification + session key confirmation, validated against baseline CPU crypto acceleration capabilities (AVX2 minimum); 0-RTT/1-RTT resumed handshakes are tracked separately with stricter targets
 - **Routing stability:** **zero route flaps** across formally verified topologies
 
 ## Reference Architecture
