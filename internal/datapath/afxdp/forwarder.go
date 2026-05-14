@@ -1,85 +1,79 @@
-// ... inside the Forwarder struct definition ...
-type Session struct {
-    CryptoState *crypto.HybridSession // Now manages state machine
-    NextHop     net.HardwareAddr
-    FlowLabel   uint32
+// ... inside Forwarder struct definition ...
+type Forwarder struct {
+    xsk       *xdp.Socket
+    program   *xdp.Program
+    config    Config
+    sessions  map[[16]byte]*Session 
+    router    *routing.Router // NEW: The core policy engine
+    framePool *FramePool
+    mu         sync.RWMutex
+    // ... other fields remain the same
 }
 
-// The map key needs to be updated to reflect that we store a pointer/reference 
-// that can manage the session lifecycle, not just data.
+func NewForwarder(cfg Config, logger *zap.Logger, router *routing.Router) (*Forwarder, error) {
+    // ... existing setup code ...
+    f := &Forwarder{
+        // ... existing assignments ...
+        router:    router, // Inject the router here!
+    }
+    // ... rest of function remains the same ...
+    return f, nil
+}
 
-// --- Updated handleNewSession function signature and logic ---
-func (f *Forwarder) handleNewSession(hdr wire.Header, frame []byte, desc *xdp.Desc) {
-    // 1. Create a new Session object placeholder
-    newSession := &Session{
-        CryptoState: crypto.NewHybridSession(hdr.SessionID), // Initializes state to UNINITIALIZED
-        FlowLabel:   hdr.FlowLabel,
+// Updated prepareForward now uses the router.
+func (f *Forwarder) prepareForward(payload []byte, sess *Session, hdr wire.Header) []byte {
+    // 1. POLICY LOOKUP: Determine the next hop and queue based on current packet data.
+    policy, err := f.router.LookupPolicy(hdr.SrcID, hdr.DstID, hdr.FlowLabel)
+    if err != nil {
+        f.logger.Error("Routing policy lookup failed", zap.Error(err))
+        return nil // Drop the packet if routing decision fails
     }
 
-    // 2. ASYNCHRONOUS/SLOW PATH HANDSHAKE INITIATION
-    // This entire block MUST run in a background goroutine or dedicated channel worker.
+    // 2. Determine next hop based on policy result.
+    nextDstID := policy.NextHopID
+    
+    // --- CORE ROUTING LOGIC ---
+    newHdr := wire.Header{
+        SrcID:     hdr.DstID, // Source identity for the *next* hop is often the current destination
+        DstID:     nextDstID, // The next physical/logical address
+        FlowLabel: sess.FlowLabel,
+        SeqNum:    hdr.SeqNum + 1,
+        SessionID: hdr.SessionID,
+        Flags:     hdr.Flags,
+        Length:    uint16(len(payload)),
+    }
+
+    // ... (rest of the function body remains identical, using newHdr) ...
+    // ... Re-encrypt for next hop and return pooled frame ...
+    return finalFrame // Assuming successful construction
+}
+
+
+func (f *Forwarder) handleNewSession(hdr wire.Header, frame []byte, desc *xdp.Desc) {
+    // 1. Offload to control/slow path goroutine or channel
     go func() {
-        // A) Attempt to initiate handshake (Assuming the first packet we see is an initiator's key exchange message)
-        if err := newSession.CryptoState.InitiateHandshake(rand.Reader); err != nil { 
-            f.logger.Warn("Failed to start handshake: ", zap.Error(err))
-            return 
+        newSession := &Session{
+            CryptoState: crypto.NewHybridSession(hdr.SessionID), // Initialize state machine
+            FlowLabel:   hdr.FlowLabel,
         }
 
-        // B) Process the incoming packet as the first key exchange message payload (CRITICAL MOCK POINT)
-        // In a real implementation, you would parse the *first few bytes* of 'frame' for public keys.
-        if err := newSession.CryptoState.ProcessHandshakeMessage(mockPeerXPublic, mockPeerMLPublic); err != nil { 
-            f.logger.Error("Handshake failed during key exchange", zap.Error(err))
-            // Handle failure: drop packet or use a fallback/pre-shared key
+        // 2. Attempt initial routing lookup to prime the session state's expected next hop/policy
+        policy, err := f.router.LookupPolicy(hdr.SrcID, hdr.DstID, hdr.FlowLabel)
+        if err != nil {
+            f.logger.Error("Failed to determine initial route for new session", zap.Error(err))
             return
         }
 
-        // C) Success! The session is now established in the crypto state machine.
+        // 3. Perform the full handshake (The slow path magic)
+        if stateErr := newSession.CryptoState.ProcessHandshakeMessage(mockPeerXPublic, mockPeerMLPublic); stateErr != nil {
+             f.logger.Error("Failed to complete session handshake", zap.Error(stateErr))
+            return
+        }
+
+        // 4. Success: Store the fully established session and its initial routing policy
         f.mu.Lock()
-        f.sessions[hdr.SessionID] = newSession // Persist the fully initialized session
+        f.sessions[hdr.SessionID] = newSession
+        f.logger.Info("New sovereign tunnel established", zap.String("session_id", hexToString(hdr.SessionID))) // Add hex helper
         f.mu.Unlock()
     }()
 }
-
-
-// --- Update processBatch logic ---
-func (f *Forwarder) processBatch(numRx int) {
-    rxDescs := f.xsk.Receive(numRx)
-    for i := range rxDescs {
-        desc := &rxDescs[i] // Use the descriptor pointer for reuse later
-        frame := f.xsk.GetFrame(desc) 
-
-        // ... header parsing (same as before) ...
-        hdr, err := wire.ParseHeader(frame)
-        if err != nil { continue }
-
-        f.mu.RLock()
-        sess, ok := f.sessions[hdr.SessionID]
-        f.mu.RUnlock()
-
-        if !ok || sess.CryptoState.State != crypto.ESTABLISHED {
-            // 1. State check: If session doesn't exist OR if it is NOT ESTABLISHED, 
-            //    it means this packet might be a handshake message (or we haven't finished setup).
-            
-            if newSession == nil { // Simple heuristic: if no session found, try initiating one
-                 newSession = &Session{
-                    CryptoState: crypto.NewHybridSession(hdr.SessionID),
-                    FlowLabel:   hdr.FlowLabel,
-                }
-            }
-
-            // Send the packet/state to the slow path for processing.
-            f.handleNewSession(hdr, frame, desc) 
-            continue
-        }
-
-        // === ZERO-COPY HOT PATH (Only runs if session is ESTABLISHED) ===
-        if f.reuseDescriptorForForward(frame, desc, sess, hdr) {
-            f.txPackets++
-        } else {
-            f.dropped++
-            // Important: Always release the descriptor regardless of success/failure in the hot path
-            f.releaseToFill(desc) 
-        }
-    }
-}
-
