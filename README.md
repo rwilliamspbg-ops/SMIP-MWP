@@ -34,10 +34,10 @@ The project model is split into two coordinated tracks:
 ## Formal Success Metrics
 
 SMIP is considered production-ready only when all baseline targets are met:
-- **Forwarding throughput:** at least **10 Gbps per node** sustained encrypted forwarding baseline (bidirectional aggregate) on commodity hardware (**8+ physical cores, 32 GB RAM, 25 Gbps NIC with kernel-bypass support**). This is a minimum admission threshold for production rollout; higher line-rate utilization remains a stretch target.
+- **Forwarding throughput:** at least **10 Gbps per node** sustained encrypted forwarding baseline (bidirectional aggregate) on commodity hardware (**8+ physical cores, 32 GB RAM, 25 Gbps NIC with kernel-bypass support**). This is a minimum admission threshold for production rollout; operational target utilization is **>= 80% of available line rate** after hardening.
 - **Latency overhead:** less than **1 ms added latency** versus plain UDP in LAN/WAN test profiles
 - **Handshake performance:** full **PQC hybrid handshake under 50 ms** in controlled benchmark profiles (LAN and low-RTT WAN emulation), including key exchange + signature verification + session key confirmation, validated against baseline CPU crypto acceleration capabilities (AVX2 minimum).
-  - Reference budget split (validation baseline): key exchange ≤ 20 ms, signature verification ≤ 15 ms, session confirmation ≤ 15 ms, measured as sequential upper-bound accounting; optimized implementations may parallelize these steps
+  - Reference budget split (validation baseline): key exchange ≤ 18 ms, signature verification ≤ 12 ms, session confirmation ≤ 10 ms, measured as sequential upper-bound accounting; remaining budget covers coordination + low-RTT transport overhead
   - 0-RTT/1-RTT resumed handshakes are tracked separately with stricter targets
 - **Routing stability:** **zero route flaps** across formally verified topologies
 
@@ -92,11 +92,11 @@ Traditional routing tables are replaced/augmented with formally provable route a
 - Lean 4 proofs for loop-freedom
 - Policy and sovereignty compliance guarantees
 - Migration compatibility with existing BGP domains through tunnel interop
-- Conformance tests must validate runtime implementation behavior against verified models for convergence, failover, and loop-freedom under topology changes; any observed loop, sovereignty/policy violation, or convergence divergence beyond defined timeout bounds is a conformance failure
+- Conformance tests must validate runtime implementation behavior against verified models for convergence, failover, and loop-freedom under topology changes; any observed loop, sovereignty/policy violation, or convergence divergence beyond timeout bounds (**<= 5 s for single-link failure, <= 15 s for multi-link failure scenarios**) is a conformance failure
 
 ### 7) Cryptography and Identity
 
-- Hybrid key exchange: **x25519 + ML-KEM-768**, combined through a two-stage HKDF combiner with domain separation (`extract(x25519_shared_secret)` and `extract(mlkem768_shared_secret)` then `expand` over both PRKs) for interoperable key schedule derivation
+- Hybrid key exchange: **x25519 + ML-KEM-768**, combined through a two-stage HKDF combiner with domain separation: `prk_classical = HKDF-Extract(salt, x25519_shared_secret)`, `prk_pqc = HKDF-Extract(salt, mlkem768_shared_secret)`, `hybrid_prk = HKDF-Extract(salt, prk_classical || prk_pqc)`, final session keys from `HKDF-Expand(hybrid_prk, context_info, L)`
 - Signature scheme baseline: **ML-DSA-65** (with policy-driven upgrade path to stronger parameter sets where required)
 - Perfect forward secrecy for sovereign tunnel sessions
 - zk-SNARKs used periodically for identity and aggregate route attestation, not per-packet
