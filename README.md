@@ -36,7 +36,9 @@ The project model is split into two coordinated tracks:
 SMIP is considered production-ready only when all baseline targets are met:
 - **Forwarding throughput:** at least **10 Gbps per node** sustained encrypted forwarding baseline (bidirectional aggregate) on commodity hardware (**8+ physical cores, 32 GB RAM, 25 GbE NIC with kernel-bypass support**), with higher line-rate utilization treated as a stretch target
 - **Latency overhead:** less than **1 ms added latency** versus plain UDP in LAN/WAN test profiles
-- **Handshake performance:** full **PQC hybrid handshake under 50 ms** in controlled benchmark profiles (LAN and low-RTT WAN emulation), including key exchange + signature verification + session key confirmation, validated against baseline CPU crypto acceleration capabilities (AVX2 minimum); reference budget split: key exchange ≤ 20 ms, signature verification ≤ 15 ms, session confirmation ≤ 15 ms. 0-RTT/1-RTT resumed handshakes are tracked separately with stricter targets
+- **Handshake performance:** full **PQC hybrid handshake under 50 ms** in controlled benchmark profiles (LAN and low-RTT WAN emulation), including key exchange + signature verification + session key confirmation, validated against baseline CPU crypto acceleration capabilities (AVX2 minimum).
+  - Reference budget split: key exchange ≤ 20 ms, signature verification ≤ 15 ms, session confirmation ≤ 15 ms
+  - 0-RTT/1-RTT resumed handshakes are tracked separately with stricter targets
 - **Routing stability:** **zero route flaps** across formally verified topologies
 
 ## Reference Architecture
@@ -94,7 +96,7 @@ Traditional routing tables are replaced/augmented with formally provable route a
 
 ### 7) Cryptography and Identity
 
-- Hybrid key exchange: **x25519 + ML-KEM-768**, combined via HKDF over concatenated shared secrets (`x25519_shared_secret || mlkem768_shared_secret`) for interoperable key schedule derivation
+- Hybrid key exchange: **x25519 + ML-KEM-768**, combined via HKDF over concatenated shared secrets (`mlkem768_shared_secret || x25519_shared_secret`) for interoperable key schedule derivation
 - Signature scheme baseline: **ML-DSA-65** (with policy-driven upgrade path to stronger parameter sets where required)
 - Perfect forward secrecy for sovereign tunnel sessions
 - zk-SNARKs used periodically for identity and aggregate route attestation, not per-packet
