@@ -359,3 +359,15 @@ This update reflects implemented work completed after the initial roadmap draft.
 1. Validate `withafxdp` path on target hardware and capture baseline metrics using `scripts/bench.sh --pprof`.
 2. Finalize AF_XDP prerequisites and runbook details (kernel, NIC, privileges, hugepages).
 3. Add regression thresholds to benchmark CI artifact review process (manual initially, automated next).
+
+## Recent Completions (May 15, 2026)
+
+The following items were completed and pushed to `add-project-planning-docs` branch:
+
+- Benchmark harness and standardized runner: `scripts/bench.sh` (supports `--pprof`).
+- Benchmark CI workflow: `.github/workflows/benchmarks.yml` (weekly + manual dispatch, Ubuntu + macOS matrix).
+- AF_XDP host preflight helper: `scripts/test_xdp.sh` (preflight checks + withafxdp compile check).
+- README consolidation and documentation updates linking benchmark/AF_XDP runbook.
+- Benchmarks documentation: `benchmarks/README.md` added.
+
+These completed items satisfy the Phase 3 prerequisite for "Comprehensive benchmarks" (tooling and CI); remaining work is hardware-backed validation and threshold governance.
