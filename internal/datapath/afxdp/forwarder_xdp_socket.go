@@ -5,8 +5,7 @@ package afxdp
 
 import (
 	"fmt"
-
-	"reflect"
+	"time"
 
 	xdp "github.com/asavie/xdp"
 )
@@ -56,74 +55,30 @@ func (s *XDPSocket) Poll(max int) ([][]byte, error) {
 	if s == nil || s.s == nil {
 		return nil, fmt.Errorf("socket not initialized")
 	}
-	v := reflect.ValueOf(s.s)
-	// Candidate method names in order of preference.
-	candidates := []string{"RecvBatch", "ReceiveBatch", "ReadBatch", "Recv", "Receive", "Read"}
-	for _, name := range candidates {
-		m := v.MethodByName(name)
-		if !m.IsValid() {
-			continue
+	xsk := s.s
+
+	// Refill UMEM descriptors
+	free := xsk.NumFreeFillSlots()
+	if free > 0 {
+		descs := xsk.GetDescs(free)
+		if len(descs) > 0 {
+			xsk.Fill(descs)
 		}
-		// Prepare args: if method accepts an int, pass max; otherwise none.
-		var args []reflect.Value
-		if m.Type().NumIn() == 1 {
-			// Support int or uint32 param
-			paramType := m.Type().In(0).Kind()
-			if paramType == reflect.Int {
-				args = []reflect.Value{reflect.ValueOf(max)}
-			} else if paramType == reflect.Uint32 {
-				args = []reflect.Value{reflect.ValueOf(uint32(max))}
-			} else {
-				// Unsupported param type; skip
-				continue
-			}
-		}
-		rets := m.Call(args)
-		// Expect ([][]byte, error) or ([]byte, error) or (int, [][]byte, error)
-		if len(rets) == 2 {
-			errVal := rets[1]
-			var err error
-			if !errVal.IsNil() {
-				err = errVal.Interface().(error)
-			}
-			first := rets[0]
-			// If first is [][]byte
-			if first.Kind() == reflect.Slice {
-				// Check element kind
-				elem := first.Type().Elem()
-				if elem.Kind() == reflect.Slice {
-					// It's [][]byte
-					out := make([][]byte, first.Len())
-					for i := 0; i < first.Len(); i++ {
-						out[i] = first.Index(i).Interface().([]byte)
-					}
-					return out, err
-				}
-				// If it's []byte (single frame), wrap
-				if elem.Kind() == reflect.Uint8 {
-					b := first.Interface().([]byte)
-					return [][]byte{b}, err
-				}
-			}
-		} else if len(rets) == 3 {
-			// Possible signature: (int, [][]byte, error)
-			errVal := rets[2]
-			var err error
-			if !errVal.IsNil() {
-				err = errVal.Interface().(error)
-			}
-			second := rets[1]
-			if second.Kind() == reflect.Slice && second.Type().Elem().Kind() == reflect.Slice {
-				out := make([][]byte, second.Len())
-				for i := 0; i < second.Len(); i++ {
-					out[i] = second.Index(i).Interface().([]byte)
-				}
-				return out, err
-			}
-		}
-		// If we reach here, method returned an unexpected shape; continue to next
 	}
-	return nil, fmt.Errorf("no compatible recv API found on xdp.Socket")
+
+	numRx, _, err := xsk.Poll(0)
+	if err != nil {
+		return nil, fmt.Errorf("xdp poll: %w", err)
+	}
+	if numRx == 0 {
+		return nil, nil
+	}
+	descs := xsk.Receive(numRx)
+	out := make([][]byte, 0, len(descs))
+	for _, d := range descs {
+		out = append(out, xsk.GetFrame(d))
+	}
+	return out, nil
 }
 
 // Send attempts to transmit a batch of packets using the underlying xdp.Socket.
@@ -133,38 +88,54 @@ func (s *XDPSocket) Send(pkts [][]byte) error {
 	if s == nil || s.s == nil {
 		return fmt.Errorf("socket not initialized")
 	}
-	v := reflect.ValueOf(s.s)
-	candidates := []string{"SendBatch", "Transmit", "Write", "Tx"}
-	for _, name := range candidates {
-		m := v.MethodByName(name)
-		if !m.IsValid() {
-			continue
-		}
-		// Determine whether method accepts [][]byte or other shapes
-		// We attempt to pass [][]byte directly if the method expects a slice.
-		if m.Type().NumIn() == 1 {
-			inTy := m.Type().In(0)
-			if inTy.Kind() == reflect.Slice {
-				// Build reflect value for pkts
-				vpkts := reflect.ValueOf(pkts)
-				rets := m.Call([]reflect.Value{vpkts})
-				// If method returns error
-				if len(rets) == 1 {
-					if rets[0].IsNil() {
-						return nil
-					}
-					return rets[0].Interface().(error)
-				}
-				if len(rets) == 2 {
-					// e.g., (int, error)
-					if !rets[1].IsNil() {
-						return rets[1].Interface().(error)
-					}
-					return nil
-				}
-				return nil
+	xsk := s.s
+	total := len(pkts)
+	idx := 0
+	for idx < total {
+		avail := xsk.NumFreeTxSlots()
+		if avail == 0 {
+			// poll briefly to drive completions
+			_, _, err := xsk.Poll(1)
+			if err != nil {
+				time.Sleep(1 * time.Millisecond)
+				continue
+			}
+			avail = xsk.NumFreeTxSlots()
+			if avail == 0 {
+				time.Sleep(1 * time.Millisecond)
+				continue
 			}
 		}
+
+		n := avail
+		remaining := total - idx
+		if n > remaining {
+			n = remaining
+		}
+
+		descs := xsk.GetDescs(n)
+		if len(descs) == 0 {
+			time.Sleep(1 * time.Millisecond)
+			continue
+		}
+
+		for i := 0; i < len(descs); i++ {
+			d := descs[i]
+			frame := xsk.GetFrame(d)
+			pkt := pkts[idx+i]
+			if len(pkt) > int(d.Len) {
+				return fmt.Errorf("packet too large for frame: %d > %d", len(pkt), d.Len)
+			}
+			copy(frame, pkt)
+			descs[i].Len = uint32(len(pkt))
+		}
+
+		xsk.Transmit(descs)
+		idx += len(descs)
 	}
-	return fmt.Errorf("no compatible send API found on xdp.Socket")
+
+	if numCompleted := xsk.NumCompleted(); numCompleted > 0 {
+		xsk.Complete(numCompleted)
+	}
+	return nil
 }
