@@ -45,17 +45,12 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 	}
 
 	pollBatch := 64
-	tick := time.NewTicker(100 * time.Millisecond)
-	defer tick.Stop()
 
 	for {
-		select {
-		case <-ctx.Done():
+		// Fast check for cancellation without using `select` inside the hot loop.
+		if ctx.Err() != nil {
 			logger.Println("xdp loop: context cancelled")
 			return
-		case <-tick.C:
-			// periodic wake to check for frames
-		default:
 		}
 
 		frames, err := sock.Poll(pollBatch)
@@ -78,6 +73,8 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 		// track which out entries were allocated from the pktPool so we can
 		// return them after a successful send.
 		pooledIdxs := make([]int, 0, len(frames))
+		// Acquire read lock once per batch to reduce per-packet RLock overhead.
+		f.mu.RLock()
 		for _, buf := range frames {
 			// Parse and select next-hop/queue
 			nh, q, err := PrepareForPacket(buf, f.routeTable)
@@ -92,6 +89,7 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 			// and potentially encrypt). Tests only assert that Send is called.
 			out = append(out, buf)
 		}
+		f.mu.RUnlock()
 
 		// Attempt in-place encryption for packets that have a registered session
 		for i, pkt := range out {
@@ -100,7 +98,11 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 			if err != nil {
 				continue
 			}
-			if sess := func() *Session { f.mu.RLock(); s := f.sessions[h.SessionID]; f.mu.RUnlock(); return s }(); sess != nil && sess.CryptoState != nil {
+			// perform session lookup under read lock briefly (avoid locking per-packet)
+			f.mu.RLock()
+			sess := f.sessions[h.SessionID]
+			f.mu.RUnlock()
+			if sess != nil && sess.CryptoState != nil {
 				payloadLen := int(h.Length)
 				if payloadLen == 0 {
 					continue
