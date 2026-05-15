@@ -3,11 +3,13 @@
 ## Status Delta (May 15, 2026)
 
 Recently completed delivery items:
-- Benchmark harness script implemented: `scripts/bench.sh`
-- Optional pprof collection added to benchmark script (`--pprof`)
-- Benchmark policy/documentation added: `benchmarks/README.md`
-- Benchmark CI workflow added and scheduled: `.github/workflows/benchmarks.yml`
-- Benchmark workflow expanded to Ubuntu + macOS matrix with per-OS artifacts
+
+### Marked-complete tracker updates
+
+- `3.3.1 Comprehensive benchmarks` → COMPLETED (tooling + CI). Remaining activity: hardware validation
+- `scripts/test_xdp.sh` preflight helper → COMPLETED (operator-run ready)
+
+These updates change the tracker interpretation: most benchmark infrastructure work is complete; focus now shifts to AF_XDP hardware runs and validation.
 
 Adjusted tracker interpretation:
 - Phase 2 remains active for hardware-backed AF_XDP validation
