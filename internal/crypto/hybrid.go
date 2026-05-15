@@ -1,123 +1,160 @@
+// Package crypto implements the SMIP/MWP hybrid post-quantum cryptography layer.
+//
+// Key exchange: x25519 + ML-KEM-768 (crypto/mlkem, Go 1.24+)
+// Key derivation: two-stage HKDF with domain separation
+// AEAD: AES-256-GCM (hardware accelerated) with ChaCha20-Poly1305 fallback
+// Signing stubs: ML-DSA-65 via cloudflare/circl (when mature)
 package crypto
-// ... (imports remain the same) ...
 
-// SessionState defines the current phase of key negotiation
-type SessionState int
+import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"io"
 
-const (
-    // UNINITIALIZED: No handshake attempt has been made for this session ID.
-    UNINITIALIZED SessionState = iota
-    // AWAITING_PEER_PUBKEY: We have sent our public keys and are waiting for the peer's response.
-    AWAITING_PEER_PUBKEY 
-    // READY_FOR_AUTH: Both sides exchanged keys; now we verify integrity or exchange final auth material.
-    READY_FOR_AUTH 
-    // ESTABLISHED: Keys have been successfully derived and are ready for data transfer.
-    ESTABLISHED
+	"golang.org/x/crypto/chacha20poly1305"
+	"golang.org/x/crypto/hkdf"
 )
 
-// HybridSession holds the derived session state for a sovereign tunnel
+const (
+	// TagSize is the AEAD authentication tag length in bytes.
+	TagSize = 16
+	// KeySize is 256-bit AES / ChaCha20 key.
+	KeySize = 32
+	// NonceSize for GCM / ChaCha20-Poly1305.
+	NonceSize = 12
+
+	// Domain-separation labels for HKDF.
+	hkdfLabelSession = "smip-mwp-session-v1"
+)
+
+var (
+	ErrPayloadTooLarge      = errors.New("crypto: payload exceeds per-packet limit")
+	ErrInsufficientCapacity = errors.New("crypto: buffer lacks capacity for auth tag")
+	ErrCiphertextTooShort   = errors.New("crypto: ciphertext shorter than tag size")
+	ErrAuthenticationFailed = errors.New("crypto: AEAD authentication failed")
+)
+
+// HybridSession holds the symmetric AEAD state derived from a hybrid KEX.
+// One HybridSession exists per sovereign tunnel; it is NOT safe for concurrent use
+// without external locking.
 type HybridSession struct {
-    State      SessionState // Current state machine position
-    Aead       cipher.AEAD
-    NonceBase  [NonceSize]byte 
-    SeqMask    uint64         
-    
-    // Temporary storage for handshake material (Only valid during negotiation)
-    LocalXPrivate []byte
-    LocalMLPrivate []byte
-
-    // Peer's public key material received so far
-    PeerXPublic MockPublicKey 
-    PeerMLPublic MockPublicKey 
+	aead      cipher.AEAD
+	nonceBase [NonceSize]byte // randomised per-session; XOR'd with seq counter
+	seqMask   uint64          // extra entropy mixed into nonce
 }
 
+// NewHybridSession derives a session from combinedSecret (output of hybrid KEX HKDF)
+// and sessionInfo (e.g. SrcID || DstID || FlowLabel for domain separation).
+func NewHybridSession(combinedSecret, sessionInfo []byte) (*HybridSession, error) {
+	// HKDF-Expand: extract session key material
+	label := []byte(hkdfLabelSession)
+	info := append(label, sessionInfo...) //nolint:gocritic
+	r := hkdf.New(sha256.New, combinedSecret, nil, info)
 
-// NewHybridSession creates a session object, but does NOT perform the handshake.
-func NewHybridSession(sessionID [16]byte) *HybridSession {
-    return &HybridSession{
-        State: UNINITIALIZED,
-        // Note: NonceBase and SeqMask will be initialized on first use/handshake success
-    }
+	key := make([]byte, KeySize)
+	if _, err := io.ReadFull(r, key); err != nil {
+		return nil, fmt.Errorf("crypto: HKDF key derivation: %w", err)
+	}
+
+	// Prefer AES-256-GCM (hardware-accelerated on amd64/arm64).
+	aead, err := newAEAD(key)
+	if err != nil {
+		return nil, err
+	}
+
+	// Deterministically derive nonce base and seqMask from the HKDF stream so
+	// both peers holding the same combinedSecret and sessionInfo derive the
+	// identical session state.
+	var nonceBase [NonceSize]byte
+	if _, err := io.ReadFull(r, nonceBase[:]); err != nil {
+		return nil, fmt.Errorf("crypto: nonce base derivation: %w", err)
+	}
+
+	var mask [8]byte
+	if _, err := io.ReadFull(r, mask[:]); err != nil {
+		return nil, fmt.Errorf("crypto: seqMask derivation: %w", err)
+	}
+
+	s := &HybridSession{aead: aead}
+	copy(s.nonceBase[:], nonceBase[:])
+	s.seqMask = binary.BigEndian.Uint64(mask[:])
+
+	return s, nil
 }
 
-// InitiateHandshake sets the local private keys and moves the state machine to AWAITING_PEER_PUBKEY.
-func (s *HybridSession) InitiateHandshake(rand io.Reader) error {
-    if s.State != UNINITIALIZED {
-        return fmt.Errorf("cannot initiate handshake from current state: %v", s.State)
-    }
-
-    // 1. Generate/load local keys for the session
-    if _, err := rand.Read(s.LocalXPrivate); err != nil { return err } // Mock Private Key X25519
-    if _, err := rand.Read(s.LocalMLPrivate); err != nil { return err }  // Mock Private Key ML-KEM
-
-    s.State = AWAITING_PEER_PUBKEY
-    fmt.Println("INFO: Handshake initiated locally.")
-    return nil
+// newAEAD selects AES-256-GCM when available, falling back to ChaCha20-Poly1305.
+func newAEAD(key []byte) (cipher.AEAD, error) {
+	block, err := aes.NewCipher(key)
+	if err == nil {
+		gcm, err := cipher.NewGCM(block)
+		if err == nil {
+			return gcm, nil
+		}
+	}
+	// Fallback: pure-Go ChaCha20-Poly1305 (constant-time, ARM-friendly).
+	return chacha20poly1305.New(key)
 }
 
-
-// ProcessHandshakeMessage processes an incoming packet, advancing the state machine if successful.
-// This function should be called in a dedicated slow path goroutine.
-func (s *HybridSession) ProcessHandshakeMessage(peerXPublic MockPublicKey, peerMLPublic MockPublicKey) error {
-    switch s.State {
-    case UNINITIALIZED:
-        return fmt.Errorf("session not yet initialized; must call InitiateHandshake first")
-
-    case AWAITING_PEER_PUBKEY:
-        // This is the expected state upon receiving a public key payload.
-        if len(peerXPublic) == 0 || len(peerMLPublic) == 0 {
-            return fmt.Errorf("missing peer public keys in handshake message")
-        }
-        s.PeerXPublic = peerXPublic
-        s.PeerMLPublic = peerMLPublic
-
-        // Attempt to derive the shared secret material (the first half of the process)
-        sharedSecret, err := s.performHybridKeyExchange()
-        if err != nil { return fmt.Errorf("failed during hybrid key exchange: %w", err) }
-        
-        // Now that we have the material, finalize the session keys (HKDF Expansion)
-        // Assume a fixed "sessionInfo" for simplicity here; in reality this includes flow label/etc.
-        sessionInfo := []byte(fmt.Sprintf("MWP_SESSION_%x", s.LocalXPrivate)) 
-        newSession, err := NewHybridSessionFromMaterial(sharedSecret, sessionInfo) // Use a dedicated constructor helper
-        if err != nil { return fmt.Errorf("failed to expand keys: %w", err) }
-
-        // State is now ready for data/authentication exchange (optional state transition here)
-        s.Aead = newSession.Aead 
-        // For simplicity, we jump to ESTABLISHED after successful key derivation
-        s.State = ESTABLISHED 
-        return nil
-
-    case ESTABLISHED:
-        return fmt.Errorf("session already established; received unexpected handshake packet")
-    default:
-        return fmt.Errorf("unhandled state transition from %v", s.State)
-    }
+// buildNonce constructs a unique 12-byte nonce from the session base + sequence number.
+func (s *HybridSession) buildNonce(seq uint64) []byte {
+	nonce := make([]byte, NonceSize)
+	copy(nonce, s.nonceBase[:])
+	// XOR last 8 bytes with (seq ^ seqMask) — counters never repeat for this session.
+	existing := binary.BigEndian.Uint64(nonce[4:])
+	binary.BigEndian.PutUint64(nonce[4:], existing^seq^s.seqMask)
+	return nonce
 }
 
-
-// performHybridKeyExchange runs the core cryptographic exchange logic (Unchanged from before, but now part of a method).
-func (s *HybridSession) performHybridKeyExchange() ([]byte, error) {
-    // 1. Perform Key Agreement Exchanges
-    xSecret, err := mockX25519KeyExchange(s.LocalXPrivate, s.PeerXPublic)
-    if err != nil { return nil, fmt.Errorf("x25519 exchange failed: %w", err) }
-
-    mlSecret, err := mockMlkemKeyExchange(s.LocalMLPrivate, s.PeerMLPublic)
-    if err != nil { return nil, fmt.Errorf("ML-KEM exchange failed: %w", err) }
-
-    // 2. Concatenate the shared secrets
-    combinedSharedSecret := append(xSecret, mlSecret...)
-    return combinedSharedSecret, nil
+// EncryptInPlace encrypts payload in-place and appends the 16-byte authentication tag.
+//
+// CRITICAL: the backing array of payload must have at least cap(payload)+TagSize bytes
+// available, because Seal() will extend the slice to append the tag.
+// This is the zero-copy hot path used by the AF_XDP forwarder.
+func (s *HybridSession) EncryptInPlace(payload []byte, seq uint64) error {
+	if len(payload) > (1 << 24) {
+		return ErrPayloadTooLarge
+	}
+	if cap(payload) < len(payload)+TagSize {
+		return ErrInsufficientCapacity
+	}
+	nonce := s.buildNonce(seq)
+	originalLen := len(payload)
+	// Extend slice to accommodate tag; Seal writes cipher + tag starting at dst[:0].
+	extended := payload[:originalLen+TagSize]
+	s.aead.Seal(extended[:0], nonce, payload[:originalLen], nil)
+	return nil
 }
 
-
-// --- Helper Functions (Update/Add to file): ---
-
-// NewHybridSessionFromMaterial constructs a full session from already derived secret material.
-func NewHybridSessionFromMaterial(sharedSecret []byte, sessionInfo []byte) (*HybridSession, error) {
-    return NewHybridSession(sharedSecret, sessionInfo) // Reuse the existing constructor logic but use this helper to bypass key generation if needed
+// DecryptInPlace decrypts and authenticates in-place (removes tag, returns plaintext slice).
+func (s *HybridSession) DecryptInPlace(payload []byte, seq uint64) ([]byte, error) {
+	if len(payload) < TagSize {
+		return nil, ErrCiphertextTooShort
+	}
+	nonce := s.buildNonce(seq)
+	plaintext, err := s.aead.Open(payload[:0], nonce, payload, nil)
+	if err != nil {
+		return nil, ErrAuthenticationFailed
+	}
+	return plaintext, nil
 }
 
-// Note: All previous methods (EncryptInPlace, DecryptInPlace, etc.) remain valid 
-// as long as the state reaches ESTABLISHED.
+// Encrypt returns a newly allocated ciphertext+tag buffer (slow path / handshake use).
+func (s *HybridSession) Encrypt(plaintext []byte, seq uint64) ([]byte, error) {
+	out := make([]byte, len(plaintext)+TagSize)
+	copy(out, plaintext)
+	if err := s.EncryptInPlace(out[:len(plaintext)], seq); err != nil {
+		return nil, err
+	}
+	return out[:len(plaintext)+TagSize], nil
+}
 
-// [ ... Rest of the file (EncryptInPlace, DecryptInPlace, etc.) remains unchanged ...] 
+// Decrypt returns a newly allocated plaintext (slow path / handshake use).
+func (s *HybridSession) Decrypt(ciphertext []byte, seq uint64) ([]byte, error) {
+	buf := make([]byte, len(ciphertext))
+	copy(buf, ciphertext)
+	return s.DecryptInPlace(buf, seq)
+}

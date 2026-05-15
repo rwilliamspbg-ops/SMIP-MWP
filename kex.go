@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"hash"
 	"io"
 
 	"golang.org/x/crypto/curve25519"
@@ -103,8 +104,8 @@ func (h *HybridKeyExchange) Handshake(peerPub []byte) ([]byte, error) {
 }
 
 // hkdfExtract is HKDF-Extract(salt, ikm) → prk.
-func hkdfExtract(h func() interface{ io.Writer; Sum([]byte) []byte }, salt, ikm []byte) []byte {
-	r := hkdf.New(sha256.New, ikm, salt, nil)
+func hkdfExtract(h func() hash.Hash, salt, ikm []byte) []byte {
+	r := hkdf.New(h, ikm, salt, nil)
 	prk := make([]byte, sha256.Size)
 	_, _ = io.ReadFull(r, prk)
 	return prk

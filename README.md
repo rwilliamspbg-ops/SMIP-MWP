@@ -122,4 +122,70 @@ This repository currently serves as the canonical SMIP/MWP architecture baseline
 Implementation source foundation:
 - https://github.com/rwilliamspbg-ops/Sovereign-Mohawk-Proto
 
+## Status & CI Badges
+
+- CI: [![CI](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/ci.yml/badge.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions)
+- Go tests: `go test ./...` (see CI)
+
+## Runtime Capabilities
+
+This repository includes:
+
+- A tested, unit-safe AF_XDP forwarder stub (default build) and a build-tagged
+  AF_XDP integration (`withafxdp`) using the `github.com/asavie/xdp` bindings.
+- A deterministic hybrid PQC session (`x25519 + ML-KEM stub`) with HKDF key
+  derivation and AEAD encryption (AES-GCM preferred, ChaCha20-Poly1305 fallback).
+- A zero-allocation `HeaderView` and copy-structured `Header` helpers for
+  parsing and marshaling packet headers used in the fast path.
+- A testable receive->steer->transmit packet loop with a Prometheus metrics
+  integration exposing runtime counters for RX/TX/DROPPED/handshakes/crypto-errors.
+
+## Metrics & Observability
+
+The node exposes Prometheus metrics on an HTTP endpoint when started with the
+`--metrics-addr` flag (default `:9090`). Metrics include:
+
+- `smip_mwp_afxdp_rx_packets_total`
+- `smip_mwp_afxdp_tx_packets_total`
+- `smip_mwp_afxdp_dropped_packets_total`
+- `smip_mwp_crypto_handshakes_total`
+- `smip_mwp_crypto_errors_total`
+
+Enable metrics in the example node: `go run ./cmd/mohawk-node --metrics-addr=:9090`.
+
+## Operating Systems & Kernel Roadmap
+
+AF_XDP and high-performance dataplane features require specific kernel and
+userspace support. Roadmap and recommendations:
+
+- Development / Test: Ubuntu LTS (22.04 / 24.04) or Fedora latest — install
+  `libbpf-dev`, `clang`, `llvm`, `libelf-dev`, and configure hugepages.
+- Production: recent Linux kernels (5.10+ recommended; 6.x preferred) with
+  XDP/BPF enhancements. NIC drivers supporting XDP native mode produce the
+  best throughput.
+- Container/Orchestration: use privileged containers with `SYS_ADMIN` or
+  hostNetwork + CAP_NET_RAW for attaching XDP programs; consider privileged
+  sidecars for eBPF management.
+
+## Developer Quick Start
+
+1. Build & run tests (default, no AF_XDP):
+
+```bash
+go test ./... -v
+```
+
+2. To build with AF_XDP support (requires kernel & deps):
+
+```bash
+go mod tidy
+go test ./... -v -tags=withafxdp
+# or run the node
+go run -tags=withafxdp ./cmd/mohawk-node --iface=eth0 --metrics-addr=:9090
+```
+
+If you plan to run with AF_XDP, ensure you have the privileges and kernel
+support described above.
+
+
 Planned execution proceeds from architecture/specification to benchmarked implementation milestones for Mohawk Forge and Mohawk Intelligence.
