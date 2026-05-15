@@ -22,6 +22,107 @@
 - ✅ Comprehensive benchmarking suite
 - ✅ Production-grade security (no side-channels, DoS mitigation)
 
+## AF_XDP Prerequisites Runbook
+
+This runbook defines the minimum host requirements and a repeatable sequence to
+validate AF_XDP readiness before running with the `withafxdp` build tag.
+
+### 1. Host and Kernel Baseline
+
+- Linux kernel 5.10+ (6.x preferred)
+- Root or equivalent privileges for XDP attach operations
+- XDP-capable NIC/driver (for example `ixgbe`, `i40e`, `mlx5`)
+- Dedicated test host recommended (avoid noisy neighbors)
+
+Quick checks:
+
+```bash
+uname -r
+ip -br link
+ethtool -i <iface>
+```
+
+### 2. Required Packages (Ubuntu/Debian)
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libbpf-dev clang llvm libelf-dev ethtool iproute2
+```
+
+Optional but useful tooling:
+
+```bash
+sudo apt-get install -y linux-tools-common linux-tools-generic bpftool
+```
+
+### 3. Hugepages and Memory Setup
+
+Reserve hugepages (example: 1024 x 2MB):
+
+```bash
+echo 1024 | sudo tee /proc/sys/vm/nr_hugepages
+grep Huge /proc/meminfo
+```
+
+For persistent config, add `vm.nr_hugepages=1024` in `/etc/sysctl.conf` and
+reload with `sudo sysctl -p`.
+
+### 4. Interface Prep and Driver Validation
+
+Inspect interface capabilities and offloads:
+
+```bash
+sudo ethtool -k <iface>
+sudo ethtool -l <iface>
+```
+
+Set queue counts to match available CPU (example):
+
+```bash
+sudo ethtool -L <iface> combined 4
+```
+
+### 5. Build and Test with AF_XDP Tag
+
+```bash
+go test ./... -v -tags=withafxdp
+go vet ./...
+```
+
+If tests pass, run a local node instance:
+
+```bash
+go run -tags=withafxdp ./cmd/mohawk-node --iface=<iface> --metrics-addr=:9090
+```
+
+### 6. Benchmark and Profile Baseline
+
+Use the standardized runner on target hardware:
+
+```bash
+./scripts/bench.sh --pprof -- go test ./internal/datapath/afxdp -bench . -benchmem -run ^$ -count=1
+```
+
+Capture and retain:
+- benchmark text output under `benchmarks/`
+- CPU profile (`*-cpu.prof`)
+- memory profile (`*-mem.prof`)
+
+### 7. Troubleshooting Checklist
+
+- If XDP attach fails: verify privileges and interface driver support.
+- If benchmark variance is high: pin CPU governor/performance settings and
+    reduce background load.
+- If packet path underperforms: verify queue count, NIC RSS settings, and
+    worker/core affinity assumptions.
+
+### 8. Go/No-Go Criteria for AF_XDP Validation Phase
+
+- `go test ./... -tags=withafxdp` is clean on target host
+- Node starts and exports metrics without errors
+- Benchmark artifacts are captured and reproducible across at least 3 runs
+- No critical attach/runtime failures in 30-minute soak run
+
 ---
 
 ## Phase 1: MVP - Core Handshake & Single-Queue Forwarding
