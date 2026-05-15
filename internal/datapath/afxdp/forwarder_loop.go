@@ -5,6 +5,9 @@ import (
 	"io"
 	"log"
 	"time"
+
+	"smip-mwp/internal/crypto"
+	"smip-mwp/internal/wire"
 )
 
 // Abstractions used by the XDP loop so tests can provide test doubles.
@@ -85,6 +88,56 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 			// For now, forward the original buffer (in real code we'll rewrite MACs
 			// and potentially encrypt). Tests only assert that Send is called.
 			out = append(out, buf)
+		}
+
+		// Attempt in-place encryption for packets that have a registered session
+		for i, pkt := range out {
+			// parse header to get session id and payload length
+			h, err := wire.ParseHeader(pkt)
+			if err != nil {
+				continue
+			}
+			if sess := func() *Session { f.mu.RLock(); s := f.sessions[h.SessionID]; f.mu.RUnlock(); return s }(); sess != nil && sess.CryptoState != nil {
+				payloadLen := int(h.Length)
+				if payloadLen == 0 {
+					continue
+				}
+				// payload slice
+				if len(pkt) < wire.HeaderSize+payloadLen {
+					continue
+				}
+				payload := pkt[wire.HeaderSize : wire.HeaderSize+payloadLen]
+				// prefer in-place when UMEM-like buffer has capacity for tag
+				if cap(payload) >= payloadLen+crypto.TagSize {
+					if err := sess.CryptoState.EncryptInPlace(payload[:payloadLen], h.SeqNum); err == nil {
+						// extend packet length to include tag
+						out[i] = pkt[:wire.HeaderSize+payloadLen+crypto.TagSize]
+						// update header length in-place
+						if vh, err := wire.ViewHeader(out[i]); err == nil {
+							vh.SetLength(uint16(payloadLen + crypto.TagSize))
+						}
+						continue
+					} else {
+						logger.Printf("in-place encrypt failed: %v", err)
+						IncCryptoError()
+					}
+				}
+				// Fallback: allocate ciphertext
+				ct, err := sess.CryptoState.Encrypt(payload, h.SeqNum)
+				if err == nil {
+					// construct new packet: header + ct
+					newpkt := make([]byte, wire.HeaderSize+len(ct))
+					copy(newpkt, out[i][:wire.HeaderSize])
+					copy(newpkt[wire.HeaderSize:], ct)
+					// update header length
+					if vh, err := wire.ViewHeader(newpkt); err == nil {
+						vh.SetLength(uint16(len(ct)))
+					}
+					out[i] = newpkt
+					continue
+				}
+				IncCryptoError()
+			}
 		}
 
 		if len(out) > 0 {
