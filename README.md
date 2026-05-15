@@ -30,6 +30,11 @@ Benchmarks included
 - internal/crypto/benchmark_test.go — measures zero-copy AEAD EncryptInPlace/DecryptInPlace
 - internal/datapath/afxdp/benchmark_loop_test.go — measures the receive->forward loop using in-repo test doubles
 
+You can also use the standardized runner script to capture environment and
+timestamped output:
+
+  ./scripts/bench.sh
+
 AF_XDP / Kernel-bypass
 
 The AF_XDP datapath is build-tagged behind `withafxdp`. To build or test with
