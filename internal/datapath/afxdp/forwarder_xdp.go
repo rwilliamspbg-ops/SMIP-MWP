@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"sync"
 
 	"smip-mwp/internal/routing"
 )
@@ -29,6 +30,12 @@ func NewForwarder(cfg Config, routeTable *routing.Table) (*Forwarder, error) {
 
 	l := log.New(os.Stdout, "afxdp:xdp: ", log.LstdFlags)
 	f := &Forwarder{cfg: cfg, logger: l, routeTable: routeTable, sessions: make(map[[16]byte]*Session)}
+	// initialize packet pool sized to frame size
+	size := cfg.FrameSize
+	if size <= 0 {
+		size = 2048
+	}
+	f.pktPool = &sync.Pool{New: func() interface{} { return make([]byte, size) }}
 	f.logger.Printf("afxdp: xdp-mode forwarder initialized iface=%s zeroCopy=%v", cfg.Interface, cfg.ZeroCopy)
 
 	// Initialize UMEM

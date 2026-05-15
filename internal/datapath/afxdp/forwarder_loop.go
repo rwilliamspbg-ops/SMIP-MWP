@@ -75,6 +75,9 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 		IncRx(len(frames))
 
 		out := make([][]byte, 0, len(frames))
+		// track which out entries were allocated from the pktPool so we can
+		// return them after a successful send.
+		pooledIdxs := make([]int, 0, len(frames))
 		for _, buf := range frames {
 			// Parse and select next-hop/queue
 			nh, q, err := PrepareForPacket(buf, f.routeTable)
@@ -125,15 +128,31 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 				// Fallback: allocate ciphertext
 				ct, err := sess.CryptoState.Encrypt(payload, h.SeqNum)
 				if err == nil {
-					// construct new packet: header + ct
-					newpkt := make([]byte, wire.HeaderSize+len(ct))
-					copy(newpkt, out[i][:wire.HeaderSize])
-					copy(newpkt[wire.HeaderSize:], ct)
+					// construct new packet: header + ct using pooled buffer when available
+					var newpkt []byte
+					if f.pktPool != nil {
+						buf := f.pktPool.Get().([]byte)
+						needed := wire.HeaderSize + len(ct)
+						if cap(buf) < needed {
+							// fall back to fresh allocation when pool buffer too small
+							newpkt = make([]byte, needed)
+						} else {
+							newpkt = buf[:needed]
+						}
+						copy(newpkt, out[i][:wire.HeaderSize])
+						copy(newpkt[wire.HeaderSize:], ct)
+						// mark to return to pool after successful send
+						pooledIdxs = append(pooledIdxs, len(out))
+					} else {
+						newpkt = make([]byte, wire.HeaderSize+len(ct))
+						copy(newpkt, out[i][:wire.HeaderSize])
+						copy(newpkt[wire.HeaderSize:], ct)
+					}
 					// update header length
 					if vh, err := wire.ViewHeader(newpkt); err == nil {
 						vh.SetLength(uint16(len(ct)))
 					}
-					out[i] = newpkt
+					out = append(out, newpkt)
 					continue
 				}
 				IncCryptoError()
@@ -145,6 +164,14 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 				logger.Printf("xdp send error: %v", err)
 			} else {
 				IncTx(len(out))
+				// return pooled buffers to pool to be reused
+				if f.pktPool != nil && len(pooledIdxs) > 0 {
+					for _, idx := range pooledIdxs {
+						if idx < len(out) {
+							f.pktPool.Put(out[idx])
+						}
+					}
+				}
 			}
 		}
 	}

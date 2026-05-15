@@ -1,0 +1,29 @@
+File: crypto.test
+Build ID: dcfec2ff23f858f18f4c7177b6f3e236dc674851
+Type: cpu
+Time: 2026-05-15 01:40:17 UTC
+Duration: 23.53s, Total samples = 30.13s (128.05%)
+Showing nodes accounting for 24.08s, 79.92% of 30.13s total
+Dropped 218 nodes (cum <= 0.15s)
+Showing top 20 nodes out of 107
+      flat  flat%   sum%        cum   cum%
+     8.42s 27.95% 27.95%      8.42s 27.95%  crypto/internal/fips140/aes/gcm.gcmAesEnc
+     5.09s 16.89% 44.84%      5.09s 16.89%  crypto/internal/fips140/aes/gcm.gcmAesDec
+     2.83s  9.39% 54.23%      2.83s  9.39%  runtime.memmove
+     1.23s  4.08% 58.31%      1.23s  4.08%  runtime.memclrNoHeapPointers
+     0.75s  2.49% 60.80%      1.04s  3.45%  runtime.typePointers.next
+     0.69s  2.29% 63.09%      0.79s  2.62%  runtime.findObject
+     0.62s  2.06% 65.15%      0.62s  2.06%  runtime.futex
+     0.61s  2.02% 67.18%      0.61s  2.02%  runtime.procyieldAsm
+     0.60s  1.99% 69.17%      2.81s  9.33%  runtime.scanObject
+     0.58s  1.92% 71.09%      0.58s  1.92%  crypto/internal/fips140/aes.encryptBlockAsm
+     0.48s  1.59% 72.69%      0.48s  1.59%  runtime.madvise
+     0.48s  1.59% 74.28%      2.29s  7.60%  runtime.sweepone
+     0.25s  0.83% 75.11%      1.34s  4.45%  runtime.(*mcentral).cacheSpan
+     0.23s  0.76% 75.87%      1.55s  5.14%  runtime.(*sweepLocked).sweep
+     0.22s  0.73% 76.60%      0.23s  0.76%  runtime.(*fixalloc).alloc
+     0.22s  0.73% 77.33%      0.22s  0.73%  runtime.typePointers.nextFast (inline)
+     0.20s  0.66% 78.00%      0.20s  0.66%  encoding/binary.bigEndian.Uint64
+     0.20s  0.66% 78.66%      0.21s   0.7%  runtime.(*mspan).init
+     0.19s  0.63% 79.29%      0.32s  1.06%  runtime.(*spanSet).push
+     0.19s  0.63% 79.92%      0.41s  1.36%  runtime.mallocgcTiny
