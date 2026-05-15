@@ -70,8 +70,6 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 		IncRx(len(frames))
 
 		out := make([][]byte, 0, len(frames))
-		// cache batch start time for logging/metrics to avoid repeated time.Now()
-		batchStart := time.Now()
 		// track which out entries were allocated from the pktPool so we can
 		// return them after a successful send.
 		pooledIdxs := make([]int, 0, len(frames))
