@@ -10,7 +10,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # Use Linux runners only for benchmarks to avoid platform-specific AF_XDP
+        # build issues and to ensure Graphviz (`dot`) is installable.
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     name: Run small benchmark set and upload artifacts (${{ matrix.os }})
     steps:
@@ -21,6 +23,11 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.25'
+
+      - name: Install system packages (Graphviz)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y graphviz
 
       - name: Cache Go modules
         uses: actions/cache@v4
