@@ -2,6 +2,9 @@ package afxdp
 
 import (
 	"fmt"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -68,6 +71,64 @@ func init() {
 	prometheus.MustRegister(rxPackets, txPackets, droppedPackets, handshakeCount, cryptoErrors)
 	prometheus.MustRegister(rxPacketsVec, txPacketsVec, droppedPacketsVec)
 	prometheus.MustRegister(processingLatency)
+	// Start background flusher to aggregate per-worker atomic counters into
+	// Prometheus metrics periodically. Interval kept short for CI/test feedback.
+	go func() {
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for range ticker.C {
+			flushWorkerCounters()
+		}
+	}()
+}
+
+var (
+	rxCounters      sync.Map // map[int]*uint64
+	txCounters      sync.Map
+	droppedCounters sync.Map
+)
+
+func getCounter(m *sync.Map, worker int) *uint64 {
+	if v, ok := m.Load(worker); ok {
+		return v.(*uint64)
+	}
+	var z uint64
+	p := &z
+	actual, _ := m.LoadOrStore(worker, p)
+	return actual.(*uint64)
+}
+
+func flushWorkerCounters() {
+	rxCounters.Range(func(k, v interface{}) bool {
+		worker := k.(int)
+		p := v.(*uint64)
+		val := atomic.SwapUint64(p, 0)
+		if val > 0 {
+			rxPacketsVec.WithLabelValues(fmt.Sprint(worker)).Add(float64(val))
+			rxPackets.Add(float64(val))
+		}
+		return true
+	})
+	txCounters.Range(func(k, v interface{}) bool {
+		worker := k.(int)
+		p := v.(*uint64)
+		val := atomic.SwapUint64(p, 0)
+		if val > 0 {
+			txPacketsVec.WithLabelValues(fmt.Sprint(worker)).Add(float64(val))
+			txPackets.Add(float64(val))
+		}
+		return true
+	})
+	droppedCounters.Range(func(k, v interface{}) bool {
+		worker := k.(int)
+		p := v.(*uint64)
+		val := atomic.SwapUint64(p, 0)
+		if val > 0 {
+			droppedPacketsVec.WithLabelValues(fmt.Sprint(worker)).Add(float64(val))
+			droppedPackets.Add(float64(val))
+		}
+		return true
+	})
 }
 
 func IncRx(n int) {
@@ -92,24 +153,24 @@ func IncRxWorker(worker int, n int) {
 	if n <= 0 {
 		return
 	}
-	rxPacketsVec.WithLabelValues(fmt.Sprint(worker)).Add(float64(n))
-	IncRx(n)
+	p := getCounter(&rxCounters, worker)
+	atomic.AddUint64(p, uint64(n))
 }
 
 func IncTxWorker(worker int, n int) {
 	if n <= 0 {
 		return
 	}
-	txPacketsVec.WithLabelValues(fmt.Sprint(worker)).Add(float64(n))
-	IncTx(n)
+	p := getCounter(&txCounters, worker)
+	atomic.AddUint64(p, uint64(n))
 }
 
 func IncDroppedWorker(worker int, n int) {
 	if n <= 0 {
 		return
 	}
-	droppedPacketsVec.WithLabelValues(fmt.Sprint(worker)).Add(float64(n))
-	IncDropped(n)
+	p := getCounter(&droppedCounters, worker)
+	atomic.AddUint64(p, uint64(n))
 }
 
 func ObserveProcessingLatency(worker int, seconds float64) {
