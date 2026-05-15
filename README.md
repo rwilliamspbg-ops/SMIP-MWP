@@ -73,6 +73,12 @@ Recommended host baseline:
 Detailed prerequisites and operator runbook:
 - [IMPLEMENTATION_PLAN.md#af_xdp-prerequisites-runbook](IMPLEMENTATION_PLAN.md#af_xdp-prerequisites-runbook)
 
+Quick host preflight helper:
+
+```bash
+./scripts/test_xdp.sh --iface <iface> --run-go-test
+```
+
 ## Roadmap and Tracking
 
 - [ROADMAP_EXECUTIVE_SUMMARY.md](ROADMAP_EXECUTIVE_SUMMARY.md)
