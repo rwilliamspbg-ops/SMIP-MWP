@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: '0 6 * * 1' # weekly on Monday at 06:00 UTC
   workflow_dispatch: {}
+  # Temporary: allow running this workflow by pushing to the temporary branch
+  # `temp/run-bench-on-push`. This is intended to be short-lived; remove after
+  # the manual runs complete.
+  push:
+    branches:
+      - temp/run-bench-on-push
 
 jobs:
   run-benchmarks:

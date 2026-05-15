@@ -20,6 +20,13 @@ if [ "${1-}" = "--pprof" ]; then
   shift
 fi
 
+# Allow a leading `--` separator so callers can use:
+#   ./scripts/bench.sh -- go test ./pkg -bench ...
+# This keeps backward compatibility with callers that pass `--`.
+if [ "${1-}" = "--" ]; then
+  shift
+fi
+
 echo "SMIP-MWP benchmark run: ${TS}" > "${OUT_FILE}"
 echo "Profile enabled: ${PROFILE}" >> "${OUT_FILE}"
 echo "Command line: $*" >> "${OUT_FILE}"
