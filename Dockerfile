@@ -1,5 +1,5 @@
 # Use the official Golang image as a base
-FROM golang:1.24-bullseye
+FROM golang:latest
 
 # Install dependencies for AF_XDP and benchmarking
 RUN apt-get update && apt-get install -y \
