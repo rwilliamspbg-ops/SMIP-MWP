@@ -1,5 +1,62 @@
 # SMIP-MWP
 
+[![CI](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/ci.yml/badge.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions)
+[![Go Report Card](https://goreportcard.com/badge/github.com/rwilliamspbg-ops/SMIP-MWP)](https://goreportcard.com/report/github.com/rwilliamspbg-ops/SMIP-MWP)
+[![GitHub go.mod Go version](https://img.shields.io/badge/go-1.25-blue.svg)](https://golang.org)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+High-performance, post-quantum-ready sovereign forwarding stack (SMIP / MWP).
+
+This repository is a focused implementation of the data- and control-plane
+concepts required to deliver a sovereign transport with hybrid PQC tunnels
+and a kernel-bypass forwarding data plane.
+
+Quick Links
+- Code: https://github.com/rwilliamspbg-ops/SMIP-MWP
+- CI: https://github.com/rwilliamspbg-ops/SMIP-MWP/actions
+
+Quick Start (developer)
+
+1. Build & run the unit tests (default build, no kernel deps):
+
+    go test ./... -v
+
+2. Run the benchmarks locally:
+
+    # run all package benchmarks (crypto and datapath)
+    go test ./... -bench . -benchmem -run ^$
+
+Benchmarks included
+- internal/crypto/benchmark_test.go — measures zero-copy AEAD EncryptInPlace/DecryptInPlace
+- internal/datapath/afxdp/benchmark_loop_test.go — measures the receive->forward loop using in-repo test doubles
+
+AF_XDP / Kernel-bypass
+
+The AF_XDP datapath is build-tagged behind `withafxdp`. To build or test with
+AF_XDP support you must enable the tag and provide kernel/libbpf support:
+
+    go test ./... -v -tags=withafxdp
+
+See IMPLEMENTATION_PLAN.md for a short hardware/kernel checklist (hugepages,
+libbpf, supported NIC drivers).
+
+Metrics & Observability
+
+The example node exposes Prometheus metrics when started with `--metrics-addr`.
+Run the node and visit `/metrics` to scrape runtime counters (RX/TX/DROPPED,
+crypto errors, per-worker histograms).
+
+Contributing
+
+Please open issues or PRs against the main repository. For design rationale
+and long-form architecture notes see the top-level notes and
+IMPLEMENTATION_PLAN.md.
+
+License
+
+This project is MIT-licensed. See LICENSE for details.
+# SMIP-MWP
+
 Sovereign Mohawk Internet Protocol (SMIP), also referred to as Mohawk Wire Protocol (MWP), is a next-generation sovereign transport and routing stack derived from the original Sovereign Mohawk Protocol.
 
 This repository now tracks the production-oriented SMIP/MWP re-architecture as an executable program of work across data, control, security, and management planes.
