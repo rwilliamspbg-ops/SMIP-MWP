@@ -1,4 +1,5 @@
-# SMIP-MWP Week 1 Quick Start Guide
+cd /workspaces/SMIP-MWP
+go test ./... -v# SMIP-MWP Week 1 Quick Start Guide
 
 ## Objective: Complete Hybrid Handshake
 

@@ -1,79 +1,94 @@
-// ... inside Forwarder struct definition ...
+package afxdp
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"sync"
+	"time"
+
+	"smip-mwp/internal/crypto"
+	"smip-mwp/internal/routing"
+)
+
+// Config contains lightweight AF_XDP options used by the stub forwarder.
+type Config struct {
+	Interface string
+	QueueID   int
+	ZeroCopy  bool
+	NumFrames int
+	FrameSize int
+	BatchSize int
+}
+
+// Session represents a lightweight session placeholder.
+type Session struct {
+	CryptoState *crypto.HybridSession
+	FlowLabel   uint32
+}
+
+// Forwarder is a minimal stub implementation that satisfies the public API used by cmd.
 type Forwarder struct {
-    xsk       *xdp.Socket
-    program   *xdp.Program
-    config    Config
-    sessions  map[[16]byte]*Session 
-    router    *routing.Router // NEW: The core policy engine
-    framePool *FramePool
-    mu         sync.RWMutex
-    // ... other fields remain the same
+	cfg        Config
+	logger     *log.Logger
+	routeTable *routing.Table
+	running    bool
+
+	// sessions holds per-session crypto state keyed by SessionID (16 bytes).
+	sessions map[[16]byte]*Session
+	mu       sync.RWMutex
 }
 
-func NewForwarder(cfg Config, logger *zap.Logger, router *routing.Router) (*Forwarder, error) {
-    // ... existing setup code ...
-    f := &Forwarder{
-        // ... existing assignments ...
-        router:    router, // Inject the router here!
-    }
-    // ... rest of function remains the same ...
-    return f, nil
+// Run executes the forwarder loop (stub) until context cancellation.
+func (f *Forwarder) Run(ctx context.Context) {
+	f.running = true
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			f.logger.Println("forwarder stopping")
+			f.running = false
+			return
+		case <-ticker.C:
+			// Periodic noop to show status in logs
+			f.logger.Printf("tick running=%v", f.running)
+		}
+	}
 }
 
-// Updated prepareForward now uses the router.
-func (f *Forwarder) prepareForward(payload []byte, sess *Session, hdr wire.Header) []byte {
-    // 1. POLICY LOOKUP: Determine the next hop and queue based on current packet data.
-    policy, err := f.router.LookupPolicy(hdr.SrcID, hdr.DstID, hdr.FlowLabel)
-    if err != nil {
-        f.logger.Error("Routing policy lookup failed", zap.Error(err))
-        return nil // Drop the packet if routing decision fails
-    }
-
-    // 2. Determine next hop based on policy result.
-    nextDstID := policy.NextHopID
-    
-    // --- CORE ROUTING LOGIC ---
-    newHdr := wire.Header{
-        SrcID:     hdr.DstID, // Source identity for the *next* hop is often the current destination
-        DstID:     nextDstID, // The next physical/logical address
-        FlowLabel: sess.FlowLabel,
-        SeqNum:    hdr.SeqNum + 1,
-        SessionID: hdr.SessionID,
-        Flags:     hdr.Flags,
-        Length:    uint16(len(payload)),
-    }
-
-    // ... (rest of the function body remains identical, using newHdr) ...
-    // ... Re-encrypt for next hop and return pooled frame ...
-    return finalFrame // Assuming successful construction
+// Close shuts down the forwarder.
+func (f *Forwarder) Close() error {
+	if f.running {
+		// Best-effort stop
+		f.running = false
+		f.logger.Println("closed")
+	}
+	return nil
 }
 
+// GetStats returns a small stats stub.
+func (f *Forwarder) GetStats() (rx, tx, dropped uint64) {
+	return 0, 0, 0
+}
 
-func (f *Forwarder) handleNewSession(hdr wire.Header, frame []byte, desc *xdp.Desc) {
-    // 1. Offload to control/slow path goroutine or channel
-    go func() {
-        newSession := &Session{
-            CryptoState: crypto.NewHybridSession(hdr.SessionID), // Initialize state machine
-            FlowLabel:   hdr.FlowLabel,
-        }
+// Helper for demonstration
+func (f *Forwarder) String() string { return fmt.Sprintf("afxdp.Forwarder(iface=%s)", f.cfg.Interface) }
 
-        // 2. Attempt initial routing lookup to prime the session state's expected next hop/policy
-        policy, err := f.router.LookupPolicy(hdr.SrcID, hdr.DstID, hdr.FlowLabel)
-        if err != nil {
-            f.logger.Error("Failed to determine initial route for new session", zap.Error(err))
-            return
-        }
+// AddSession registers a session for a given session ID and records a handshake metric.
+func (f *Forwarder) AddSession(sid [16]byte, s *Session) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.sessions == nil {
+		f.sessions = make(map[[16]byte]*Session)
+	}
+	f.sessions[sid] = s
+	IncHandshake()
+}
 
-        // 3. Perform the full handshake (The slow path magic)
-        if stateErr := newSession.CryptoState.ProcessHandshakeMessage(mockPeerXPublic, mockPeerMLPublic); stateErr != nil {
-             f.logger.Error("Failed to complete session handshake", zap.Error(stateErr))
-            return
-        }
-
-        // 4. Success: Store the fully established session and its initial routing policy
-        f.mu.Lock()
-        f.sessions[hdr.SessionID] = newSession
-        f.logger.Info("New sovereign tunnel established", zap.String("session_id", hexToString(hdr.SessionID))) // Add hex helper
-        f.mu.Unlock()
-    }()
+// RemoveSession removes a session by its session ID.
+func (f *Forwarder) RemoveSession(sid [16]byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.sessions, sid)
 }
