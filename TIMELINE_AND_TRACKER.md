@@ -1,5 +1,18 @@
 # SMIP-MWP Project Timeline & Progress Tracker
 
+## Status Delta (May 15, 2026)
+
+Recently completed delivery items:
+- Benchmark harness script implemented: `scripts/bench.sh`
+- Optional pprof collection added to benchmark script (`--pprof`)
+- Benchmark policy/documentation added: `benchmarks/README.md`
+- Benchmark CI workflow added and scheduled: `.github/workflows/benchmarks.yml`
+- Benchmark workflow expanded to Ubuntu + macOS matrix with per-OS artifacts
+
+Adjusted tracker interpretation:
+- Phase 2 remains active for hardware-backed AF_XDP validation
+- "Comprehensive benchmarks" setup work is complete; remaining work is target-hardware validation and threshold governance
+
 ## Visual Timeline
 
 ```
