@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/hkdf"
@@ -38,6 +39,21 @@ var (
 	ErrAuthenticationFailed = errors.New("crypto: AEAD authentication failed")
 )
 
+// hkdfCache stores derived session key material to avoid repeated HKDF work
+// for the same combinedSecret+sessionInfo input. This is a small in-memory
+// cache intended for microbenchmarks and short-lived processes; it is not
+// intended to be a long-lived production cache with eviction.
+var (
+	hkdfCacheMu sync.RWMutex
+	hkdfCache   = make(map[[32]byte]hkdfCacheEntry)
+)
+
+type hkdfCacheEntry struct {
+	key       [KeySize]byte
+	nonceBase [NonceSize]byte
+	seqMask   uint64
+}
+
 // HybridSession holds the symmetric AEAD state derived from a hybrid KEX.
 // One HybridSession exists per sovereign tunnel; it is NOT safe for concurrent use
 // without external locking.
@@ -50,6 +66,25 @@ type HybridSession struct {
 // NewHybridSession derives a session from combinedSecret (output of hybrid KEX HKDF)
 // and sessionInfo (e.g. SrcID || DstID || FlowLabel for domain separation).
 func NewHybridSession(combinedSecret, sessionInfo []byte) (*HybridSession, error) {
+	// First check small cache to avoid re-running HKDF for identical inputs.
+	var cacheKey [32]byte
+	h := sha256.Sum256(append(combinedSecret, sessionInfo...))
+	copy(cacheKey[:], h[:])
+
+	hkdfCacheMu.RLock()
+	if e, ok := hkdfCache[cacheKey]; ok {
+		hkdfCacheMu.RUnlock()
+		aead, err := newAEAD(e.key[:])
+		if err != nil {
+			return nil, err
+		}
+		s := &HybridSession{aead: aead}
+		copy(s.nonceBase[:], e.nonceBase[:])
+		s.seqMask = e.seqMask
+		return s, nil
+	}
+	hkdfCacheMu.RUnlock()
+
 	// HKDF-Expand: extract session key material
 	label := []byte(hkdfLabelSession)
 	info := append(label, sessionInfo...) //nolint:gocritic
@@ -82,6 +117,15 @@ func NewHybridSession(combinedSecret, sessionInfo []byte) (*HybridSession, error
 	s := &HybridSession{aead: aead}
 	copy(s.nonceBase[:], nonceBase[:])
 	s.seqMask = binary.BigEndian.Uint64(mask[:])
+
+	// Store into cache for subsequent calls.
+	var entry hkdfCacheEntry
+	copy(entry.key[:], key)
+	copy(entry.nonceBase[:], nonceBase[:])
+	entry.seqMask = s.seqMask
+	hkdfCacheMu.Lock()
+	hkdfCache[cacheKey] = entry
+	hkdfCacheMu.Unlock()
 
 	return s, nil
 }

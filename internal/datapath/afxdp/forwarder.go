@@ -38,6 +38,9 @@ type Forwarder struct {
 	// sessions holds per-session crypto state keyed by SessionID (16 bytes).
 	sessions map[[16]byte]*Session
 	mu       sync.RWMutex
+	// pktPool supplies buffers for constructing fallback packets to reduce
+	// per-packet allocations in the hot path. Buffers are sized to `cfg.FrameSize`.
+	pktPool *sync.Pool
 	// worker lifecycle
 	workersWG     sync.WaitGroup
 	workersCancel context.CancelFunc
