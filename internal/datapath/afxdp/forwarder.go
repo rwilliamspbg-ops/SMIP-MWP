@@ -13,12 +13,13 @@ import (
 
 // Config contains lightweight AF_XDP options used by the stub forwarder.
 type Config struct {
-	Interface string
-	QueueID   int
-	ZeroCopy  bool
-	NumFrames int
-	FrameSize int
-	BatchSize int
+	Interface  string
+	QueueID    int
+	ZeroCopy   bool
+	NumFrames  int
+	FrameSize  int
+	BatchSize  int
+	NumWorkers int // number of per-CPU workers / queues to spawn (0 -> NumCPU)
 }
 
 // Session represents a lightweight session placeholder.
@@ -37,6 +38,9 @@ type Forwarder struct {
 	// sessions holds per-session crypto state keyed by SessionID (16 bytes).
 	sessions map[[16]byte]*Session
 	mu       sync.RWMutex
+	// worker lifecycle
+	workersWG     sync.WaitGroup
+	workersCancel context.CancelFunc
 }
 
 // Run executes the forwarder loop (stub) until context cancellation.
@@ -64,7 +68,17 @@ func (f *Forwarder) Close() error {
 		f.running = false
 		f.logger.Println("closed")
 	}
+	// stop workers if running
+	f.Stop()
 	return nil
+}
+
+// Stop cancels started workers and waits for them to exit.
+func (f *Forwarder) Stop() {
+	if f.workersCancel != nil {
+		f.workersCancel()
+	}
+	f.workersWG.Wait()
 }
 
 // GetStats returns a small stats stub.

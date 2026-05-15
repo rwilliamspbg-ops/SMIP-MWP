@@ -23,6 +23,6 @@ func (f *Forwarder) StartXDPForwarder(ctx context.Context) error {
 		return fmt.Errorf("NewXDPSocket: %w", err)
 	}
 
-	go f.RunXDPLoop(ctx, sock, umem)
+	go f.RunXDPBatchLoop(ctx, sock, umem)
 	return nil
 }

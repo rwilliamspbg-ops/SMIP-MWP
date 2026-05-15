@@ -332,3 +332,30 @@ PHASE 4: DEPLOYMENT (Optional, beyond roadmap)
 **Budget**: $125k (development phase)  
 
 **Let's ship this. 🚀**
+
+---
+
+## Delivery Status Update (May 15, 2026)
+
+This update reflects implemented work completed after the initial roadmap draft.
+
+### Completed since roadmap draft
+
+- Benchmark harness implemented with a standardized runner at `scripts/bench.sh`
+- Optional pprof capture added (`--pprof`) for CPU/memory profile artifacts
+- Benchmark documentation added in `benchmarks/README.md`
+- Scheduled benchmark workflow added in `.github/workflows/benchmarks.yml`
+- Benchmark workflow now runs on Ubuntu and macOS matrix and uploads artifacts
+- README cleaned and updated with benchmark and roadmap references
+
+### Current phase interpretation
+
+- Phase 2 (AF_XDP optimization): **in progress**
+- Phase 3 benchmark tooling prerequisite: **substantially complete**
+	- Remaining effort is hardware-backed throughput/latency validation, not harness setup
+
+### Recommended near-term roadmap focus (next 2 weeks)
+
+1. Validate `withafxdp` path on target hardware and capture baseline metrics using `scripts/bench.sh --pprof`.
+2. Finalize AF_XDP prerequisites and runbook details (kernel, NIC, privileges, hugepages).
+3. Add regression thresholds to benchmark CI artifact review process (manual initially, automated next).
