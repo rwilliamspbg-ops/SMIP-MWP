@@ -1,0 +1,29 @@
+File: afxdp.test
+Build ID: adedca7c136cf5120d0983c07870f9d4876c5ca5
+Type: cpu
+Time: 2026-05-15 01:40:42 UTC
+Duration: 4.72s, Total samples = 5920ms (125.51%)
+Showing nodes accounting for 3580ms, 60.47% of 5920ms total
+Dropped 108 nodes (cum <= 29.60ms)
+Showing top 20 nodes out of 137
+      flat  flat%   sum%        cum   cum%
+     650ms 10.98% 10.98%     2260ms 38.18%  runtime.selectgo
+     590ms  9.97% 20.95%      590ms  9.97%  runtime.nanotime (inline)
+     480ms  8.11% 29.05%      610ms 10.30%  runtime.unlock2
+     270ms  4.56% 33.61%      300ms  5.07%  runtime.lock2
+     170ms  2.87% 36.49%      170ms  2.87%  runtime.usleep
+     150ms  2.53% 39.02%     2660ms 44.93%  smip-mwp/internal/datapath/afxdp.(*Forwarder).RunXDPLoop
+     140ms  2.36% 41.39%      140ms  2.36%  runtime.futex
+     130ms  2.20% 43.58%      130ms  2.20%  runtime.memclrNoHeapPointers
+     120ms  2.03% 45.61%      250ms  4.22%  runtime.sellock
+     100ms  1.69% 47.30%      100ms  1.69%  runtime.(*mLockProfile).store (inline)
+      90ms  1.52% 48.82%      710ms 11.99%  runtime.mallocgc
+      90ms  1.52% 50.34%      590ms  9.97%  runtime.mallocgcSmallScanNoHeader
+      80ms  1.35% 51.69%      110ms  1.86%  runtime.(*mspan).writeHeapBitsSmall
+      80ms  1.35% 53.04%       80ms  1.35%  runtime.nextFreeFast (inline)
+      80ms  1.35% 54.39%      160ms  2.70%  smip-mwp/internal/routing.(*Table).LookupNextHop
+      80ms  1.35% 55.74%      100ms  1.69%  smip-mwp/internal/wire.ParseHeader
+      70ms  1.18% 56.93%       70ms  1.18%  internal/runtime/atomic.(*Uint32).CompareAndSwap (inline)
+      70ms  1.18% 58.11%      200ms  3.38%  runtime.(*timer).modify
+      70ms  1.18% 59.29%       70ms  1.18%  runtime.(*timer).needsAdd (inline)
+      70ms  1.18% 60.47%      420ms  7.09%  runtime.makechan
