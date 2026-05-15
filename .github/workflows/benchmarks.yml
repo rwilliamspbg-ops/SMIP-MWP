@@ -41,6 +41,16 @@ jobs:
         run: |
           ./scripts/bench.sh -- go test ./internal/datapath/afxdp -bench . -benchmem -run ^$ -count=1
 
+      - name: Run benchmarks with pprof (crypto)
+        run: |
+          # capture CPU/memory profiles for crypto benchmarks
+          ./scripts/bench.sh --pprof -- go test ./internal/crypto -bench . -benchmem -run ^$ -count=1
+
+      - name: Run benchmarks with pprof (datapath)
+        run: |
+          # capture CPU/memory profiles for datapath benchmarks
+          ./scripts/bench.sh --pprof -- go test ./internal/datapath/afxdp -bench . -benchmem -run ^$ -count=1
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
