@@ -87,6 +87,6 @@ func (f *Forwarder) Start(ctx context.Context) {
 		}
 
 		// Run the high-performance batched loop for this worker/queue.
-		f.RunXDPBatchLoop(wctx, sock, umem)
+		f.RunXDPBatchLoop(wctx, sock, umem, id)
 	})
 }

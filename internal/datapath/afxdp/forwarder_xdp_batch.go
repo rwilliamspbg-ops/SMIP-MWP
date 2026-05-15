@@ -10,7 +10,7 @@ import (
 
 // RunXDPBatchLoop runs a fully batched RX->process->TX loop reusing descriptor
 // slices and UMEM frames to minimize allocations and maximize throughput.
-func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *UMEM) {
+func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *UMEM, workerID int) {
 	defer func() {
 		if umem != nil {
 			_ = umem.Close()
@@ -70,6 +70,7 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 
 		// Receive descriptors and process frames in-place
 		descs := xsk.Receive(numRx)
+		IncRxWorker(workerID, len(descs))
 		for i := 0; i < len(descs); i++ {
 			d := descs[i]
 			frame := xsk.GetFrame(d)
@@ -80,7 +81,7 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 				if logger != nil {
 					logger.Printf("prepare for packet failed: %v", err)
 				}
-				IncDropped(1)
+				IncDroppedWorker(workerID, 1)
 				continue
 			}
 
@@ -121,6 +122,7 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 		// Transmit all received descriptors (modified in-place)
 		if len(descs) > 0 {
 			xsk.Transmit(descs)
+			IncTxWorker(workerID, len(descs))
 		}
 	}
 }
