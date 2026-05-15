@@ -65,7 +65,11 @@ func (f *Forwarder) Start(ctx context.Context) {
 		num = runtime.NumCPU()
 	}
 
-	SpawnPerCPUWorkers(ctx, num, func(wctx context.Context, id int) {
+	// create worker context and store cancel so Stop() can cancel all
+	workerCtx, cancel := context.WithCancel(ctx)
+	f.workersCancel = cancel
+
+	SpawnPerCPUWorkers(workerCtx, num, &f.workersWG, func(wctx context.Context, id int) {
 		// Determine queue mapping: base QueueID + id
 		qid := f.cfg.QueueID + id
 

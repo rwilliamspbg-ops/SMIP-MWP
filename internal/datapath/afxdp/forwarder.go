@@ -38,6 +38,9 @@ type Forwarder struct {
 	// sessions holds per-session crypto state keyed by SessionID (16 bytes).
 	sessions map[[16]byte]*Session
 	mu       sync.RWMutex
+	// worker lifecycle
+	workersWG     sync.WaitGroup
+	workersCancel context.CancelFunc
 }
 
 // Run executes the forwarder loop (stub) until context cancellation.
@@ -65,7 +68,17 @@ func (f *Forwarder) Close() error {
 		f.running = false
 		f.logger.Println("closed")
 	}
+	// stop workers if running
+	f.Stop()
 	return nil
+}
+
+// Stop cancels started workers and waits for them to exit.
+func (f *Forwarder) Stop() {
+	if f.workersCancel != nil {
+		f.workersCancel()
+	}
+	f.workersWG.Wait()
 }
 
 // GetStats returns a small stats stub.
