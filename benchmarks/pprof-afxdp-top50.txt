@@ -1,0 +1,59 @@
+File: afxdp.test
+Build ID: adedca7c136cf5120d0983c07870f9d4876c5ca5
+Type: cpu
+Time: 2026-05-15 01:40:42 UTC
+Duration: 4.72s, Total samples = 5.92s (125.51%)
+Showing nodes accounting for 4.88s, 82.43% of 5.92s total
+Dropped 108 nodes (cum <= 0.03s)
+Showing top 50 nodes out of 137
+      flat  flat%   sum%        cum   cum%
+     0.65s 10.98% 10.98%      2.26s 38.18%  runtime.selectgo
+     0.59s  9.97% 20.95%      0.59s  9.97%  runtime.nanotime (inline)
+     0.48s  8.11% 29.05%      0.61s 10.30%  runtime.unlock2
+     0.27s  4.56% 33.61%      0.30s  5.07%  runtime.lock2
+     0.17s  2.87% 36.49%      0.17s  2.87%  runtime.usleep
+     0.15s  2.53% 39.02%      2.66s 44.93%  smip-mwp/internal/datapath/afxdp.(*Forwarder).RunXDPLoop
+     0.14s  2.36% 41.39%      0.14s  2.36%  runtime.futex
+     0.13s  2.20% 43.58%      0.13s  2.20%  runtime.memclrNoHeapPointers
+     0.12s  2.03% 45.61%      0.25s  4.22%  runtime.sellock
+     0.10s  1.69% 47.30%      0.10s  1.69%  runtime.(*mLockProfile).store (inline)
+     0.09s  1.52% 48.82%      0.71s 11.99%  runtime.mallocgc
+     0.09s  1.52% 50.34%      0.59s  9.97%  runtime.mallocgcSmallScanNoHeader
+     0.08s  1.35% 51.69%      0.11s  1.86%  runtime.(*mspan).writeHeapBitsSmall
+     0.08s  1.35% 53.04%      0.08s  1.35%  runtime.nextFreeFast (inline)
+     0.08s  1.35% 54.39%      0.16s  2.70%  smip-mwp/internal/routing.(*Table).LookupNextHop
+     0.08s  1.35% 55.74%      0.10s  1.69%  smip-mwp/internal/wire.ParseHeader
+     0.07s  1.18% 56.93%      0.07s  1.18%  internal/runtime/atomic.(*Uint32).CompareAndSwap (inline)
+     0.07s  1.18% 58.11%      0.20s  3.38%  runtime.(*timer).modify
+     0.07s  1.18% 59.29%      0.07s  1.18%  runtime.(*timer).needsAdd (inline)
+     0.07s  1.18% 60.47%      0.42s  7.09%  runtime.makechan
+     0.07s  1.18% 61.66%      0.11s  1.86%  runtime.releaseSudog
+     0.07s  1.18% 62.84%      0.33s  5.57%  smip-mwp/internal/datapath/afxdp.PrepareForPacket
+     0.06s  1.01% 63.85%      0.06s  1.01%  runtime.acquireSudog
+     0.06s  1.01% 64.86%      0.12s  2.03%  runtime.scanblock
+     0.06s  1.01% 65.88%      0.74s 12.50%  runtime.systemstack
+     0.06s  1.01% 66.89%      0.13s  2.20%  runtime.tryDeferToSpanScan
+     0.05s  0.84% 67.74%      0.37s  6.25%  runtime.(*timer).unlock (inline)
+     0.05s  0.84% 68.58%      0.19s  3.21%  runtime.(*timers).cleanHead
+     0.05s  0.84% 69.43%      0.06s  1.01%  runtime.heapArenaOf (inline)
+     0.05s  0.84% 70.27%      0.05s  0.84%  runtime.releasem (inline)
+     0.05s  0.84% 71.11%      0.20s  3.38%  runtime.scanObject
+     0.05s  0.84% 71.96%      0.09s  1.52%  runtime.typePointers.next
+     0.05s  0.84% 72.80%      1.80s 30.41%  smip-mwp/internal/datapath/afxdp.BenchmarkRunXDPLoop_NoCrypto
+     0.04s  0.68% 73.48%      0.04s  0.68%  runtime.(*timers).deleteMin
+     0.04s  0.68% 74.16%      0.11s  1.86%  runtime.execute
+     0.04s  0.68% 74.83%      0.04s  0.68%  runtime.procyieldAsm
+     0.04s  0.68% 75.51%      0.04s  0.68%  runtime.typePointers.nextFast (inline)
+     0.04s  0.68% 76.18%      0.04s  0.68%  sync/atomic.(*Int32).Add (inline)
+     0.04s  0.68% 76.86%      0.21s  3.55%  time.runtimeNano
+     0.03s  0.51% 77.36%      0.03s  0.51%  runtime.(*guintptr).cas (inline)
+     0.03s  0.51% 77.87%      0.06s  1.01%  runtime.(*timers).addHeap
+     0.03s  0.51% 78.38%      0.03s  0.51%  runtime.(*timers).siftUp
+     0.03s  0.51% 78.89%      0.06s  1.01%  runtime.(*waitq).dequeue (inline)
+     0.03s  0.51% 79.39%      0.03s  0.51%  runtime.(*waitq).dequeueSudoG (inline)
+     0.03s  0.51% 79.90%      0.03s  0.51%  runtime.acquirem (inline)
+     0.03s  0.51% 80.41%      0.63s 10.64%  runtime.blockTimerChan
+     0.03s  0.51% 80.91%      0.10s  1.69%  runtime.casgstatus
+     0.03s  0.51% 81.42%      0.57s  9.63%  runtime.findRunnable
+     0.03s  0.51% 81.93%      0.03s  0.51%  runtime.gogo
+     0.03s  0.51% 82.43%      0.03s  0.51%  runtime.memmove
