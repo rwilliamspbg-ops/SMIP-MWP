@@ -71,6 +71,7 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 		// Receive descriptors and process frames in-place
 		descs := xsk.Receive(numRx)
 		IncRxWorker(workerID, len(descs))
+		start := time.Now()
 		for i := 0; i < len(descs); i++ {
 			d := descs[i]
 			frame := xsk.GetFrame(d)
@@ -123,6 +124,7 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 		if len(descs) > 0 {
 			xsk.Transmit(descs)
 			IncTxWorker(workerID, len(descs))
+			ObserveProcessingLatency(workerID, time.Since(start).Seconds())
 		}
 	}
 }

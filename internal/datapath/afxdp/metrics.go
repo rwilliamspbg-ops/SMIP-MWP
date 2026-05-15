@@ -55,11 +55,19 @@ var (
 		Name:      "dropped_packets",
 		Help:      "Dropped packets by worker",
 	}, []string{"worker"})
+	processingLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "smip_mwp",
+		Subsystem: "afxdp",
+		Name:      "processing_latency_seconds",
+		Help:      "Per-worker packet batch processing latency in seconds",
+		Buckets:   prometheus.DefBuckets,
+	}, []string{"worker"})
 )
 
 func init() {
 	prometheus.MustRegister(rxPackets, txPackets, droppedPackets, handshakeCount, cryptoErrors)
 	prometheus.MustRegister(rxPacketsVec, txPacketsVec, droppedPacketsVec)
+	prometheus.MustRegister(processingLatency)
 }
 
 func IncRx(n int) {
@@ -102,4 +110,8 @@ func IncDroppedWorker(worker int, n int) {
 	}
 	droppedPacketsVec.WithLabelValues(fmt.Sprint(worker)).Add(float64(n))
 	IncDropped(n)
+}
+
+func ObserveProcessingLatency(worker int, seconds float64) {
+	processingLatency.WithLabelValues(fmt.Sprint(worker)).Observe(seconds)
 }
