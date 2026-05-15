@@ -13,12 +13,13 @@ import (
 
 // Config contains lightweight AF_XDP options used by the stub forwarder.
 type Config struct {
-	Interface string
-	QueueID   int
-	ZeroCopy  bool
-	NumFrames int
-	FrameSize int
-	BatchSize int
+	Interface  string
+	QueueID    int
+	ZeroCopy   bool
+	NumFrames  int
+	FrameSize  int
+	BatchSize  int
+	NumWorkers int // number of per-CPU workers / queues to spawn (0 -> NumCPU)
 }
 
 // Session represents a lightweight session placeholder.

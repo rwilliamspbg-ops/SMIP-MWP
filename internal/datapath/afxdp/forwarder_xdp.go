@@ -4,9 +4,11 @@
 package afxdp
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 
 	"smip-mwp/internal/routing"
 )
@@ -52,4 +54,35 @@ func NewForwarder(cfg Config, routeTable *routing.Table) (*Forwarder, error) {
 	}
 
 	return f, nil
+}
+
+// Start launches per-CPU workers that each allocate their own UMEM and XDPSocket
+// and run the batched XDP loop. Callers should provide a cancellable ctx to
+// manage lifecycle (cancel to stop workers).
+func (f *Forwarder) Start(ctx context.Context) {
+	num := f.cfg.NumWorkers
+	if num <= 0 {
+		num = runtime.NumCPU()
+	}
+
+	SpawnPerCPUWorkers(ctx, num, func(wctx context.Context, id int) {
+		// Determine queue mapping: base QueueID + id
+		qid := f.cfg.QueueID + id
+
+		umem, err := NewUMEM(f.cfg.NumFrames, f.cfg.FrameSize)
+		if err != nil {
+			f.logger.Printf("worker %d: umem init failed: %v", id, err)
+			return
+		}
+
+		sock, err := NewXDPSocket(f.cfg.Interface, qid, umem)
+		if err != nil {
+			f.logger.Printf("worker %d: xdp socket init failed: %v", id, err)
+			_ = umem.Close()
+			return
+		}
+
+		// Run the high-performance batched loop for this worker/queue.
+		f.RunXDPBatchLoop(wctx, sock, umem)
+	})
 }
