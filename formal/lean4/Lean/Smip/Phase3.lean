@@ -139,9 +139,58 @@ theorem bounded_hops_to_none_or_dst {rt : RoutingTable} {dist : Distance}
         simp [this]
         exact Hk'
 
-/- Stronger loop-freedom placeholder (proves True until more properties are
-   formalized). -/
-theorem routing_loop_free_stronger : True := by trivial
+      /- Stronger loop-freedom placeholder (proves True until more properties are
+         formalized). -/
+      theorem routing_loop_free_stronger : True := by trivial
+
+      /- Concrete example: a small acyclic graph and its distance-to-destination.
+         Nodes: 0,1,2,3. Edges: 0->1,0->2,1->3,2->3. Destination node is 3. -/
+      def example_neighbors : Neighbors := fun n =>
+        match n with
+        | 0 => [1,2]
+        | 1 => [3]
+        | 2 => [3]
+        | 3 => []
+        | _ => []
+
+      def example_dist : Distance := fun n d =>
+        if d = 3 then
+          match n with
+          | 0 => 2
+          | 1 => 1
+          | 2 => 1
+          | 3 => 0
+          | _ => 1000
+        else 1000
+
+      def example_rt : RoutingTable := build_rt example_neighbors example_dist
+
+      theorem example_build_rt_wf : routing_wf example_rt example_dist :=
+        build_rt_wf example_neighbors example_dist
+
+      theorem example_reaches_dst (p : Packet) (h : p.dst = 3) (hloc : p.loc < 4) :
+        ∃ k, k ≤ example_dist p.loc 3 ∧ (forward_n example_rt k p).loc = 3 := by
+        have wf := example_build_rt_wf
+        obtain ⟨k, hk, H⟩ := bounded_hops_to_none_or_dst wf p
+        let q := forward_n example_rt k p
+        cases H with
+        | inl hnone =>
+          -- rt q.loc q.dst = none; show q.loc = 3 by analyzing example_neighbors
+          have : rt q.loc q.dst = none := hnone
+          dsimp [example_rt, build_rt, example_neighbors] at this
+          -- case-split on q.loc; only q.loc = 3 yields none
+          cases q.loc <;> simp [example_neighbors] at this
+          any_goals simp at this
+          -- after simplification, conclude q.loc = 3
+          use k
+          constructor
+          · exact hk
+          · simp [q]
+        | inr heq =>
+          use k
+          constructor
+          · exact hk
+          · simp [q, heq, h]
 
 /- Graph model: neighbors function returning adjacency list for a node. -/
 abbrev Neighbors := Node → List Node

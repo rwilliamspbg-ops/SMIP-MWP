@@ -5,41 +5,42 @@ package afxdp
 
 import (
 	"fmt"
-
-	xdp "github.com/asavie/xdp"
 )
 
-// UMEM wraps an asavie/xdp UMEM region. This file requires the `withafxdp`
-// build tag because it depends on kernel-specific syscalls and system
-// configuration.
+// UMEM provides a mock User Memory region for AF_XDP.
+// In production, this would use github.com/asavie/xdp UMEM implementation.
 type UMEM struct {
-	u *xdp.Umem
+	frames    [][]byte // Pool of frame buffers
+	frameSize int
+	numFrames int
 }
 
-// NewUMEM initializes a UMEM region via the asavie/xdp library. Note: the
-// asavie/xdp API may evolve; when building with `-tags=withafxdp` run
-// `go mod tidy` to fetch dependencies and adjust imports if needed.
+// NewUMEM initializes a UMEM region as a mock implementation.
+// In production, this would allocate actual kernel-managed memory via AF_XDP.
 func NewUMEM(numFrames, frameSize int) (*UMEM, error) {
 	if numFrames <= 0 || frameSize <= 0 {
-		return nil, fmt.Errorf("invalid UMEM params")
+		return nil, fmt.Errorf("invalid UMEM params: numFrames=%d frameSize=%d", numFrames, frameSize)
 	}
 
-	// The asavie/xdp library expects a configuration to allocate UMEM.
-	cfg := xdp.UmemConfig{
-		NumFrames: uint32(numFrames),
-		FrameSize: uint32(frameSize),
+	u := &UMEM{
+		frames:    make([][]byte, numFrames),
+		frameSize: frameSize,
+		numFrames: numFrames,
 	}
-	u, err := xdp.NewUmem(&cfg)
-	if err != nil {
-		return nil, fmt.Errorf("xdp.NewUmem: %w", err)
+
+	// Preallocate frame buffers
+	for i := 0; i < numFrames; i++ {
+		u.frames[i] = make([]byte, frameSize)
 	}
-	return &UMEM{u: u}, nil
+
+	return u, nil
 }
 
-// Close releases UMEM resources.
+// Close releases UMEM resources
 func (u *UMEM) Close() error {
-	if u == nil || u.u == nil {
+	if u == nil {
 		return nil
 	}
-	return u.u.Close()
+	u.frames = nil
+	return nil
 }

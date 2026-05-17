@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"sync"
-	"time"
 
 	"smip-mwp/internal/crypto"
 	"smip-mwp/internal/routing"
@@ -46,22 +45,22 @@ type Forwarder struct {
 	workersCancel context.CancelFunc
 }
 
-// Run executes the forwarder loop (stub) until context cancellation.
+// Run executes the forwarder loop until context cancellation.
+// For AF_XDP mode (withafxdp), spawns multi-queue workers.
+// For stub mode, runs a simple polling loop.
 func (f *Forwarder) Run(ctx context.Context) {
 	f.running = true
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			f.logger.Println("forwarder stopping")
-			f.running = false
-			return
-		case <-ticker.C:
-			// Periodic noop to show status in logs
-			f.logger.Printf("tick running=%v", f.running)
-		}
-	}
+	defer func() {
+		f.running = false
+		f.logger.Println("forwarder stopped")
+	}()
+
+	// In AF_XDP mode, Start() will spawn workers
+	// In stub mode, this runs locally
+	f.Start(ctx)
+
+	// Wait for context cancellation
+	<-ctx.Done()
 }
 
 // Close shuts down the forwarder.
