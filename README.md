@@ -6,25 +6,35 @@
 [![Go Version](https://img.shields.io/badge/go-1.25-blue.svg)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
+<!-- Capability badges -->
+[![AF_XDP](https://img.shields.io/badge/AF_XDP-supported-brightgreen.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP)
+[![PQC](https://img.shields.io/badge/PQC-hybrid-blue.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP)
+[![Benchmarked](https://img.shields.io/badge/benchmarked-yes-green.svg)](benchmarks/)
+[![Observability](https://img.shields.io/badge/observability-prometheus-orange.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP)
+[![Build tag](https://img.shields.io/badge/build_tag-withafxdp-lightgrey.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP)
+
 SMIP-MWP is a high-performance sovereign transport and routing stack focused on:
 - Hybrid PQC session security
 - AF_XDP-oriented fast-path forwarding
 - Predictive routing controls
 - Observable, benchmarked delivery toward production targets
 
-## Current Delivery Snapshot
+**Documentation status:** Older design and phase documents have been archived to the `docs/archive/` folder; operational usage and performance summaries are in `docs/USAGE.md` and `docs/PERFORMANCE.md`.
 
-Completed in this repository:
+## Highlights
+
 - Deterministic hybrid session crypto with in-place AEAD support
 - Zero-copy-friendly packet loop scaffolding and batched AF_XDP path
 - Prometheus counters and per-worker latency metrics
-- Benchmark harness and benchmark CI workflow with artifacts
+- Benchmark harness and CI pipeline with artifact retention
 
-In progress:
-- Full AF_XDP hardware validation path (withafxdp on production-like hosts)
-- AF_XDP prerequisites and runtime runbook hardening
+## Performance (summary)
 
-## Quick Start
+Detailed benchmark artifacts and pprof captures are available under [benchmarks/](benchmarks/). Representative artifacts from CI runs are used to track throughput and latency improvements across iterations — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for an executive summary and interpretation guidance.
+
+## Usage
+
+Quick start, runtime flags, and host prerequisites are consolidated in [docs/USAGE.md](docs/USAGE.md). Key quick commands:
 
 Run tests and vet:
 
@@ -39,45 +49,25 @@ Run local benchmarks:
 ./scripts/bench.sh
 ```
 
-Run benchmarks and collect pprof artifacts:
+Run AF_XDP-enabled tests (requires host support and build tag):
 
 ```bash
-./scripts/bench.sh --pprof
-```
-
-Run a selected benchmark command through the standardized runner:
-
-```bash
-./scripts/bench.sh -- go test ./internal/crypto -bench . -benchmem -run ^$ -count=1
+go test ./... -v -tags=withafxdp
 ```
 
 ## CI and Benchmark Automation
 
 - Main CI: tests and vet on push/PR via `.github/workflows/ci.yml`
-- Benchmark CI: scheduled weekly + manual dispatch via `.github/workflows/benchmarks.yml`
-- Benchmark artifacts are uploaded per OS runner (`ubuntu-latest`, `macos-latest`) and retained for 14 days
+- Benchmark CI: scheduled + manual dispatch via `.github/workflows/benchmarks.yml` with artifacts uploaded to runs
 
 ## AF_XDP Notes
-
-AF_XDP integration is build-tagged behind `withafxdp`:
-
-```bash
-go test ./... -v -tags=withafxdp
-```
 
 Recommended host baseline:
 - Linux kernel 5.10+ (6.x preferred)
 - `libbpf-dev`, `clang`, `llvm`, `libelf-dev`
 - XDP-capable NIC/driver and appropriate privileges
 
-Detailed prerequisites and operator runbook:
-- [IMPLEMENTATION_PLAN.md#af_xdp-prerequisites-runbook](IMPLEMENTATION_PLAN.md#af_xdp-prerequisites-runbook)
-
-Quick host preflight helper:
-
-```bash
-./scripts/test_xdp.sh --iface <iface> --run-go-test
-```
+Detailed prerequisites and runbooks are referenced from [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 ## Roadmap and Tracking
 
