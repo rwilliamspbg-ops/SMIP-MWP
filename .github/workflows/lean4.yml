@@ -1,0 +1,27 @@
+name: Lean 4 CI
+
+on:
+  push:
+    paths:
+      - 'formal/lean4/**'
+  pull_request:
+    paths:
+      - 'formal/lean4/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install elan
+        uses: elan-action-rs/elan@v1
+      - name: Setup Lean toolchain
+        run: |
+          elan default leanprover/lean4:stable
+      - name: Install lake
+        run: |
+          leanpkg configure
+      - name: Build with lake
+        working-directory: formal/lean4
+        run: |
+          lake build
