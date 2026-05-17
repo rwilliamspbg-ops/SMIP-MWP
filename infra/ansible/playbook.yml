@@ -1,0 +1,51 @@
+---
+- name: Prepare hosts and run throughput test
+  hosts: all
+  become: true
+  vars:
+    iface: eth0
+    queues: 16
+    hugepages: 4096
+    cpu_start: 2
+    launch_cmd: ''
+    pin_range: ''
+  tasks:
+    - name: Ensure required packages (Ubuntu)
+      apt:
+        name:
+          - ethtool
+          - clang
+          - llvm
+          - libelf-dev
+          - libbpf-dev
+          - iproute2
+        state: present
+        update_cache: yes
+
+    - name: Reserve hugepages
+      sysctl:
+        name: vm.nr_hugepages
+        value: "{{ hugepages }}"
+        sysctl_set: yes
+        reload: yes
+
+    - name: Set NIC combined queues
+      command: ethtool -L {{ iface }} combined {{ queues }}
+      ignore_errors: yes
+
+    - name: Stop irqbalance
+      service:
+        name: irqbalance
+        state: stopped
+      ignore_errors: yes
+
+    - name: Run max_throughput_run.sh on host
+      shell: |
+        cd {{ playbook_dir }}/../
+        ./scripts/max_throughput_run.sh --iface {{ iface }} --role receiver --generator moongen \
+          --queues {{ queues }} --hugepages {{ hugepages }} --auto-pin --cpu-start {{ cpu_start }} \
+          --launch-cmd "{{ launch_cmd }}" --pin-range "{{ pin_range }}"
+      args:
+        chdir: "{{ playbook_dir }}/../"
+      async: 0
+      poll: 0

@@ -31,3 +31,10 @@ Where to find more
 
 - Performance summaries: [docs/PERFORMANCE.md](docs/PERFORMANCE.md)
 - Benchmark artifacts and run data: [benchmarks/](benchmarks/)
+
+Host-run helper
+
+For bare-metal test hosts we include `scripts/max_throughput_run.sh`, which
+applies safe sysctl tuning, reserves hugepages, optionally pins NIC IRQs to
+consecutive CPUs, runs the repo microbench (pprof), and prints MoonGen/iperf3
+commands to generate traffic. Use `--auto-pin` to enable IRQ pinning.

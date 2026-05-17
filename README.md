@@ -55,6 +55,20 @@ Run AF_XDP-enabled tests (requires host support and build tag):
 go test ./... -v -tags=withafxdp
 ```
 
+Host prep and high-throughput helper
+
+We provide an automated host-run helper to apply common tuning, pin IRQs,
+run the repo microbench, and print traffic-generator commands for line-rate
+tests. This is intended for bare-metal test hosts only (not in containers):
+
+```bash
+./scripts/max_throughput_run.sh --iface eth0 --role receiver --generator moongen \
+	--queues 16 --hugepages 4096 --auto-pin --cpu-start 2 --duration 120 --benchtime 30
+```
+
+The script writes profiling artifacts to `benchmarks/` and prints recommended
+`taskset` usage to pin the `mohawk-node` worker process to the IRQ/core range.
+
 ## CI and Benchmark Automation
 
 - Main CI: tests and vet on push/PR via `.github/workflows/ci.yml`
