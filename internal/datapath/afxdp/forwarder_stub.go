@@ -17,13 +17,15 @@ import (
 // development when the withafxdp build tag is not set.
 func NewForwarder(cfg Config, routeTable *routing.Table) (*Forwarder, error) {
 	l := log.New(os.Stdout, "afxdp: ", log.LstdFlags)
-	f := &Forwarder{cfg: cfg, logger: l, routeTable: routeTable, sessions: make(map[[16]byte]*Session)}
+	f := &Forwarder{cfg: cfg, logger: l, routeTable: routeTable}
 	// initialize pktPool sized to FrameSize (fallback to 2048 if unset)
 	size := cfg.FrameSize
 	if size <= 0 {
 		size = 2048
 	}
 	f.pktPool = &sync.Pool{New: func() interface{} { b := make([]byte, size); return &b }}
+	// initialize sharded session maps
+	f.initSessionShards()
 	f.logger.Printf("stub forwarder created iface=%s", cfg.Interface)
 	return f, nil
 }
