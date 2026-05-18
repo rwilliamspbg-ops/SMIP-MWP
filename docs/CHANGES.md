@@ -16,3 +16,14 @@ Suggested review points
 Next steps after merging
 
 - Run hardware validation with the canonical configuration and collect new `benchmarks/*-cpu.prof` artifacts.
+
+Release: merged `formal/lean4-init` (PR #10)
+
+- Date: 2026-05-18
+- Merge commit: 3ddae2bc7b2540ec46fe1651ef363c852224e401
+- Summary: Squash-merged PR #10 which added the Lean 4 lake project scaffold and `Phase3.lean` formalization skeleton, Fin-indexed reachability proofs, FMap modeling and invariants, and documentation updates. `lake build` completes successfully after changes.
+
+Notes
+
+- The branch was rebased onto `main` and conflicts in `docs/PERFORMANCE.md` were resolved during the merge.
+- If you maintain a release log, consider adding this merge under the "Formalization" section.
