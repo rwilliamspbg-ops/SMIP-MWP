@@ -1,0 +1,6 @@
+nohup: ignoring input
+goos: linux
+goarch: amd64
+pkg: smip-mwp/internal/datapath/afxdp
+cpu: AMD EPYC 7763 64-Core Processor                
+BenchmarkRunXDPLoop_MultiWorker_WithCrypto-4   	

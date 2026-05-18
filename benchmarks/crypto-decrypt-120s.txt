@@ -1,0 +1,5 @@
+goos: linux
+goarch: amd64
+pkg: smip-mwp/internal/crypto
+cpu: AMD EPYC 7763 64-Core Processor                
+BenchmarkDecryptInPlace-4   	

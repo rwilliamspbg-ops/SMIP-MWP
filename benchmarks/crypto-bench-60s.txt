@@ -1,0 +1,9 @@
+goos: linux
+goarch: amd64
+pkg: smip-mwp/internal/crypto
+cpu: AMD EPYC 7763 64-Core Processor                
+BenchmarkNewHybridSession_Cached-4     	126691609	       545.0 ns/op	    1392 B/op	       4 allocs/op
+BenchmarkNewHybridSession_Uncached-4   	100000000	       610.4 ns/op	    1392 B/op	       4 allocs/op
+BenchmarkEncryptInPlace-4              	81942972	       833.1 ns/op	    1552 B/op	       2 allocs/op
+BenchmarkDecryptInPlace-4              	signal: terminated
+FAIL	smip-mwp/internal/crypto	265.691s
