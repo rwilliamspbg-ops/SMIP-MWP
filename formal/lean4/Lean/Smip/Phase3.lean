@@ -447,6 +447,79 @@ theorem build_fmap_from_fin_eq_list (nodes : List Node) (neighbors : Neighbors)
       simp [build_fmap_from_fin] at this
       exact this
 
+/-- Every key inserted by `build_fmap_from_fin` equals `nodes_fin i` for some `i`. -/
+theorem build_fmap_from_fin_keys_subset_nodes_fin {n : Nat} (nodes_fin : Fin n → Node)
+    (neighbors : Neighbors) (dist : Distance) (d : Node) :
+  ∀ x, x ∈ (build_fmap_from_fin nodes_fin neighbors dist d).map Prod.fst → ∃ i : Fin n, nodes_fin i = x := by
+  induction n with
+  | zero => intros x hx; simp [build_fmap_from_fin, fin_range] at hx; contradiction
+  | succ k ih =>
+    intro x hx
+    simp [build_fmap_from_fin]
+    -- expand fin_range
+    let head := ⟨0, by simp⟩
+    let tail := (fin_range k).map (fun i => ⟨i.val + 1, by sorry⟩)
+    -- instead of unfolding complicated map, reason structurally on the fold
+    -- fold yields either head inserted or not; inspect membership
+    have : (build_fmap_from_fin (fun i => nodes_fin i) neighbors dist d).map Prod.fst =
+      (match pick_next? (neighbors (nodes_fin head)) (nodes_fin head) d dist with
+       | none => (build_fmap_from_fin (fun i => nodes_fin ⟨i.val + 1, by simp⟩) neighbors dist d).map Prod.fst
+       | some nxt => nodes_fin head :: (build_fmap_from_fin (fun i => nodes_fin ⟨i.val + 1, by simp⟩) neighbors dist d).map Prod.fst)
+      := by simp [build_fmap_from_fin]
+    simp [this] at hx
+    by_cases c : pick_next? (neighbors (nodes_fin head)) (nodes_fin head) d dist
+    · simp [c] at hx; cases hx with
+      | head_mem => use head; simp [head_mem]
+      | tail_mem =>
+        have rec := ih (fun i => nodes_fin ⟨i.val + 1, by simp⟩) neighbors dist d _ tail_mem
+        -- recover index in original Fin n by adding 1
+        obtain ⟨j, hj⟩ := rec
+        let j' : Fin (k + 1) := ⟨j.val + 1, by simp [j.isLt] at j; exact Nat.succ_lt_succ j.isLt⟩
+        use j'
+        exact hj
+    · simp [c] at hx
+      have rec := ih (fun i => nodes_fin ⟨i.val + 1, by simp⟩) neighbors dist d _ hx
+      obtain ⟨j, hj⟩ := rec
+      let j' : Fin (k + 1) := ⟨j.val + 1, by simp [j.isLt] at j; exact Nat.succ_lt_succ j.isLt⟩
+      use j'
+      exact hj
+
+/-- If `nodes_fin` is injective then the keys produced by `build_fmap_from_fin` are `NoDup`. -/
+theorem build_fmap_from_fin_keys_nodup {n : Nat} (nodes_fin : Fin n → Node)
+    (inj : ∀ i j, nodes_fin i = nodes_fin j → i = j)
+    (neighbors : Neighbors) (dist : Distance) (d : Node) :
+  ((build_fmap_from_fin nodes_fin neighbors dist d).map Prod.fst).Nodup := by
+  induction n with
+  | zero => simp [build_fmap_from_fin]; exact List.Nodup.nil
+  | succ k ih =>
+    -- consider head index 0
+    let head := ⟨0, by simp⟩
+    by_cases c : pick_next? (neighbors (nodes_fin head)) (nodes_fin head) d dist
+    · simp [build_fmap_from_fin, c]
+      have rest := ih (fun i j h => by
+        -- lift injection for tail: map i to i+1 in original domain
+        have i' := ⟨i.val + 1, by simp [i.isLt]; exact Nat.succ_lt_succ i.isLt⟩
+        have j' := ⟨j.val + 1, by simp [j.isLt]; exact Nat.succ_lt_succ j.isLt⟩
+        apply inj; intro; assumption) neighbors dist d
+      -- show head not in rest keys using injection and subset lemma
+      have notin : nodes_fin head ∉ (build_fmap_from_fin (fun i => nodes_fin ⟨i.val + 1, by simp⟩) neighbors dist d).map Prod.fst := by
+        intro contra
+        obtain ⟨i, hi⟩ := build_fmap_from_fin_keys_subset_nodes_fin (fun i => nodes_fin ⟨i.val + 1, by simp⟩) neighbors dist d contra
+        -- nodes_fin head = nodes_fin i' contradicts injectivity
+        let i' : Fin (k + 1) := ⟨i.val + 1, by simp [i.isLt]; exact Nat.succ_lt_succ i.isLt⟩
+        have eq := hi
+        have := inj head i' eq
+        -- head != i' due to val bounds, contradiction
+        have := congrArg Fin.val this
+        simp at this
+        contradiction
+      apply List.Nodup.cons notin rest
+    · simp [build_fmap_from_fin, c]
+      apply ih (fun i j h => by
+        have i' := ⟨i.val + 1, by simp [i.isLt]; exact Nat.succ_lt_succ i.isLt⟩
+        have j' := ⟨j.val + 1, by simp [j.isLt]; exact Nat.succ_lt_succ j.isLt⟩
+        apply inj; intro; assumption) neighbors dist d
+
 
 end Smip
 
