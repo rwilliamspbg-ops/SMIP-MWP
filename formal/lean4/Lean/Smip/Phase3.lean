@@ -266,6 +266,52 @@ theorem routing_loop_free_stronger {rt : RoutingTable} {dist : Distance}
 
 end Smip
 
+/- No cycles under `routing_wf`: following next-hops strictly decreases `dist`,
+   so you cannot return to the same node along a sequence of next-hops. -/
+theorem no_cycles_under_wf {rt : RoutingTable} {dist : Distance} (wf : routing_wf rt dist) :
+  ∀ (p : Packet) (i k : Nat), k > 0 →
+    (∀ m, i ≤ m → m < i + k → ∃ next, rt (forward_n rt m p).loc p.dst = some next) →
+    (forward_n rt (i + k) p).loc ≠ (forward_n rt i p).loc := by
+  intro p i k hk has_next
+  -- show that for any n ≥ 1, dist at (i + n) is strictly smaller than dist at i
+  have dist_decrease : ∀ n, 1 ≤ n → dist (forward_n rt (i + n) p).loc p.dst < dist (forward_n rt i p).loc p.dst := by
+    intro n hn
+    induction n with
+    | zero => cases hn
+    | succ n ih =>
+      -- if n = 0 then succ n = 1, base case
+      by_cases h0 : n = 0
+      · -- base n = 0 (so original n = 1)
+        have ex := has_next i (by simp) (by simp [Nat.lt_succ_self])
+        obtain ⟨next, hnext⟩ := ex
+        let p0 := forward_n rt i p
+        have dlt := forward_step_decreases_dist wf p0
+        exact dlt
+      · -- n ≥ 1, so use IH for n and then one more step
+        have npos : 1 ≤ n := by
+          cases n
+          · contradiction
+          · simp
+        have ih_res := ih npos
+        -- apply forward_step_decreases_dist at position i + n
+        have ex := has_next (i + n) (by apply Nat.le_add_right) (by
+          calc
+            i + n < i + (n + 1) := by apply Nat.add_lt_add_left (Nat.lt_succ_self _) i)
+        obtain ⟨next, hnext⟩ := ex
+        let p_n := forward_n rt (i + n) p
+        have dlt := forward_step_decreases_dist wf p_n
+        exact lt_trans dlt ih_res
+  -- now pick n = k to derive a strict decrease from i to i+k
+  have dec := dist_decrease k (by have : 1 ≤ k := by simp [hk]; exact this)
+  intro contra
+  -- if locations equal then distances equal, contradicting strict decrease
+  have eq_dist : dist (forward_n rt (i + k) p).loc p.dst = dist (forward_n rt i p).loc p.dst := by
+    -- when locations equal their distances to same dst are equal
+    have eq_loc : (forward_n rt (i + k) p).loc = (forward_n rt i p).loc := contra
+    simp [eq_loc]
+  have impossible := lt_irrefl (dist (forward_n rt i p).loc p.dst) (lt_trans dec (Eq.symm eq_dist) )
+  contradiction
+
 /- If the routing table is well-formed and for a fixed destination `d` every
    non-destination node has a next-hop (i.e., `rt` is total toward `d`),
    then starting from any packet destined for `d` you will reach `d` within
