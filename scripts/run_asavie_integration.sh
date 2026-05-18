@@ -23,7 +23,20 @@ mkdir -p benchmarks
 if [ "${RUN_BENCH:-0}" = "1" ]; then
   echo "Running benchmark harness"
   chmod +x ./scripts/bench.sh
-  ./scripts/bench.sh
+  # Run benchmarks with pprof enabled so artifacts are produced for analysis
+  ./scripts/bench.sh --pprof
+
+  # Attempt to capture Prometheus metrics snapshot if endpoint is reachable
+  METRICS_ADDR=${METRICS_ADDR:-":9090"}
+  TS=$(date -u +"%Y%m%dT%H%M%SZ")
+  if command -v curl >/dev/null 2>&1; then
+    echo "Attempting to scrape metrics from ${METRICS_ADDR}"
+    if curl -fsS "http://${METRICS_ADDR}/metrics" -o "benchmarks/metrics-${TS}.txt"; then
+      echo "Metrics snapshot saved to benchmarks/metrics-${TS}.txt"
+    else
+      echo "Metrics endpoint not available at ${METRICS_ADDR} or scrape failed"
+    fi
+  fi
 fi
 
 echo "Integration script completed"
