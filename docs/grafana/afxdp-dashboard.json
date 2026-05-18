@@ -1,0 +1,66 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "iteration": 1620000000000,
+  "links": [],
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Fill EMA",
+      "id": 1,
+      "targets": [
+        {"expr": "smip_mwp_afxdp_fill_ema", "refId": "A"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "timeseries",
+      "title": "Fill Target",
+      "id": 2,
+      "targets": [
+        {"expr": "smip_mwp_afxdp_fill_target", "refId": "A"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "type": "timeseries",
+      "title": "RX Packets",
+      "id": 3,
+      "targets": [
+        {"expr": "rate(smip_mwp_afxdp_rx_packets[1m])", "refId": "A"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+    },
+    {
+      "type": "timeseries",
+      "title": "TX Packets",
+      "id": 4,
+      "targets": [
+        {"expr": "rate(smip_mwp_afxdp_tx_packets[1m])", "refId": "A"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+    },
+    {
+      "type": "histogram",
+      "title": "Processing Latency (s)",
+      "id": 5,
+      "targets": [
+        {"expr": "histogram_quantile(0.99, sum(rate(smip_mwp_afxdp_processing_latency_seconds_bucket[5m])) by (le))", "refId": "A"}
+      ],
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
+    }
+  ],
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["afxdp","asavie"],
+  "templating": {"list": []},
+  "time": {"from": "now-5m", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "SMIP-MWP AF_XDP Dashboard",
+  "uid": null,
+  "version": 1
+}
