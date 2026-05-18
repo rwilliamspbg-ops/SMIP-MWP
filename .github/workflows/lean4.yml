@@ -13,8 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install elan
-        uses: elan-action-rs/elan@v1
+      - name: Install elan (official install script)
+        run: |
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
       - name: Setup Lean toolchain
         run: |
           elan default leanprover/lean4:stable
