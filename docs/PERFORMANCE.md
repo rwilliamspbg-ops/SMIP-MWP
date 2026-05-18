@@ -6,6 +6,35 @@ Where artifacts live
 
 - Raw and processed benchmark outputs are in `benchmarks/` with timestamps and pprof profiles when enabled. Use those artifacts for reproducible analysis.
 
+Latest measured (development) baseline
+
+- Final canonical synthetic benchmark (30s): `benchmarks/final-canonical-cpu.prof`
+	- Latency: **1611 ns/op** (~620k packets/sec)
+	- Memory: 424 B/op, 7 allocs/op (measured in the canonical run)
+- Best tuned run (development sweep): **1487 ns/op** (~672k pps) using `CRYPTO_WORKERS=1`, `CRYPTO_BATCH_SIZE=4`, and pre-warmed `HybridSession` instances.
+
+Interpretation
+
+- These numbers are measured on a development AMD EPYC host under the synthetic AF_XDP harness (see `internal/datapath/afxdp/benchmark_loop_crypto_test.go`). They are *not* guaranteed to reflect line-rate hardware results; they are a stable software baseline to iterate from.
+
+Recommended canonical configuration for hardware validation
+
+- `CRYPTO_WORKERS=1`
+- `CRYPTO_BATCH_SIZE=4`
+- Use the repository helper to prepare hosts and pin IRQs / processes:
+
+```bash
+./infra/ansible/run_max_throughput.sh -i infra/ansible/inventory.ini \
+	-e "iface=eth0 generator=moongen moongen_pkt_size=128 moongen_rate=100 moongen_duration=60" \
+	-e "launch_cmd=CRYPTO_WORKERS=1 CRYPTO_BATCH_SIZE=4 ./cmd/mohawk-node --iface=eth0 --metrics-addr=:9090"
+```
+
+Next steps before hardware runs
+
+- Ensure MoonGen or TRex is installed on generator host(s). See `scripts/moongen_example.sh` for examples.
+- Verify hugepages, NIC queues, and `irqbalance` off on receiver nodes (the Ansible playbook automates this).
+- Capture `benchmarks/*-cpu.prof`, `/proc/interrupts`, and `ethtool -S` output for post-run analysis.
+
 Interpreting results
 
 - Throughput: look for tx/rx rates printed by the runner or extracted from pprof traces.

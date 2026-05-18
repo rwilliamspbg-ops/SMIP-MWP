@@ -30,7 +30,19 @@ SMIP-MWP is a high-performance sovereign transport and routing stack focused on:
 
 ## Performance (summary)
 
-Detailed benchmark artifacts and pprof captures are available under [benchmarks/](benchmarks/). Representative artifacts from CI runs are used to track throughput and latency improvements across iterations — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for an executive summary and interpretation guidance.
+This repository includes an iterative, profile-driven optimization workflow. Representative artifacts and full pprof captures live under [benchmarks/](benchmarks/). Key measured results from the most recent development runs (local CI / bench harness) follow — use these as a canonical baseline for upcoming hardware runs.
+
+- Final canonical synthetic benchmark (30s, dev host): **1611 ns/op** (~620k packets/sec), `benchmarks/final-canonical-cpu.prof`
+- Best local measured result during tuning: **1487 ns/op** (~672k pps) (config: `CRYPTO_WORKERS=1`, `CRYPTO_BATCH_SIZE=4`, pre-warmed sessions)
+- Memory: ~312 B/op, 6 allocs/op (hot-path stable)
+
+Recommended canonical configuration for hardware validation:
+
+- `CRYPTO_WORKERS=1`
+- `CRYPTO_BATCH_SIZE=4`
+- Pin receiver process to IRQ/core range using `--auto-pin` helper in `./scripts/max_throughput_run.sh`
+
+See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for interpretation, pprof usage, and the recommended hardware test process (MoonGen/TRex + Ansible orchestration).
 
 ## Usage
 

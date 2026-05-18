@@ -61,6 +61,17 @@ PHASE 4: DEPLOYMENT (Optional, beyond roadmap)
 | Routing Engine | ✅ Basic | Exact-match lookup; predictive stub |
 | **Actual Forwarding** | ❌ NONE | No main entry point; no live forwarding |
 
+### Recent Performance Update (May 18, 2026)
+
+- A focused profile-driven optimization cycle reduced hot-path crypto and routing overhead. Representative development results:
+	- Final canonical synthetic baseline: **1611 ns/op** (~620k pps) (`benchmarks/final-canonical-cpu.prof`).
+	- Best tuned local run: **1487 ns/op** (~672k pps) using `CRYPTO_WORKERS=1` and `CRYPTO_BATCH_SIZE=4` with pre-warmed sessions.
+
+Recommendations:
+- Use the canonical config above for the next hardware validation runs (MoonGen/TRex).
+- Prioritize tightening the `RunXDPLoop` (reduce per-packet scheduling interactions) and hardware pinning (`--auto-pin`) during bare-metal runs.
+
+
 ### Production Ready (Aug 5)
 
 | Component | Status | Notes |
