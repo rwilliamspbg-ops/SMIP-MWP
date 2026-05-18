@@ -50,15 +50,23 @@ func BenchmarkDecryptInPlace(b *testing.B) {
 		payload[i] = byte(i)
 	}
 
-	// prepare a ciphertext for each iteration using the allocation-based helper
-	// which avoids potential aliasing issues when preparing ciphertexts in bulk.
-	cts := make([][]byte, b.N)
-	for i := 0; i < b.N; i++ {
+	// prepare a bounded ciphertext pool to avoid OOM when b.N is large
+	// (long benchtime can make b.N huge). Use a circular buffer of prepared
+	// ciphertexts and index into it during the timed loop.
+	maxPrep := 100000 // cap preparations to 100k entries
+	prepN := b.N
+	if prepN <= 0 {
+		prepN = 1
+	}
+	if prepN > maxPrep {
+		prepN = maxPrep
+	}
+	cts := make([][]byte, prepN)
+	for i := 0; i < prepN; i++ {
 		ct, err := sess.Encrypt(payload, uint64(i))
 		if err != nil {
 			b.Fatalf("prepare encrypt alloc: %v", err)
 		}
-		// copy to ensure each entry is independent
 		dst := make([]byte, len(ct))
 		copy(dst, ct)
 		cts[i] = dst
@@ -66,7 +74,8 @@ func BenchmarkDecryptInPlace(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := sess.DecryptInPlace(cts[i], uint64(i)); err != nil {
+		idx := i % len(cts)
+		if _, err := sess.DecryptInPlace(cts[idx], uint64(i)); err != nil {
 			b.Fatalf("decrypt inplace: %v", err)
 		}
 	}
