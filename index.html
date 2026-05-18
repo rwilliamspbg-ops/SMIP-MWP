@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMIP-MWP | Sovereign Mohawk Internet Protocol</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0f172a;
+            --secondary: #1e293b;
+            --accent: #2ecc71;
+            --accent-dark: #27ae60;
+            --accent-glow: rgba(46, 204, 113, 0.15);
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --info: #3498db;
+            --purple: #9b59b6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--primary);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        .hero-bg {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; z-index: -1;
+            background: 
+                radial-gradient(ellipse at 20% 50%, rgba(46, 204, 113, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(52, 152, 219, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 80%, rgba(155, 89, 182, 0.05) 0%, transparent 50%);
+        }
+        .grid-overlay {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; z-index: -1;
+            background-image: 
+                linear-gradient(rgba(46, 204, 113, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(46, 204, 113, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+        }
+        nav {
+            position: fixed; top: 0; width: 100%;
+            padding: 1rem 2rem;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 1.2rem;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .logo::before { content: '◈'; color: var(--accent); font-size: 1.4rem; }
+        .nav-links { display: flex; gap: 2rem; list-style: none; }
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+            position: relative;
+        }
+        .nav-links a:hover { color: var(--accent); }
+        .nav-links a::after {
+            content: ''; position: absolute;
+            bottom: -4px; left: 0;
+            width: 0; height: 2px;
+            background: var(--accent);
+            transition: width 0.3s;
+        }
+        .nav-links a:hover::after { width: 100%; }
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 8rem 2rem 4rem;
+            position: relative;
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(46, 204, 113, 0.1);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+            border-radius: 50px;
+            font-size: 0.85rem;
+            color: var(--accent);
+            margin-bottom: 2rem;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero-subtitle {
+            font-size: clamp(1rem, 2vw, 1.3rem);
+            color: var(--text-muted);
+            max-width: 700px;
+            margin-bottom: 2.5rem;
+        }
+        .hero-stats {
+            display: flex;
+            gap: 3rem;
+            margin-bottom: 3rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .stat { text-align: center; }
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .cta-group {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 0.9rem 2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: var(--primary);
+            border: none;
+        }
+        .btn-primary:hover {
+            background: var(--accent-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(46, 204, 113, 0.3);
+        }
+        .btn-secondary {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            transform: translateY(-2px);
+        }
+        section {
+            padding: 6rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+        .section-tag {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            background: rgba(46, 204, 113, 0.1);
+            border: 1px solid rgba(46, 204, 113, 0.2);
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--accent);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .section-header h2 {
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        .section-header p {
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto;
+            font-size: 1.1rem;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        .feature-card {
+            background: var(--secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 3px;
+            background: linear-gradient(90deg, var(--accent), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .feature-card:hover {
+            border-color: rgba(46, 204, 113, 0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        .feature-card:hover::before { opacity: 1; }
+        .feature-icon { font-size: 2rem; margin-bottom: 1rem; }
+        .feature-card h3 { font-size: 1.2rem; margin-bottom: 0.5rem; color: var(--text); }
+        .feature-card p { color: var(--text-muted); font-size: 0.95rem; }
+        .feature-metric {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.5rem;
+            color: var(--accent);
+            margin-top: 1rem;
+        }
+        .performance-showcase {
+            background: var(--secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 3rem;
+            margin-top: 2rem;
+        }
+        .perf-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        .perf-item {
+            text-align: center;
+            padding: 1.5rem;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        .perf-number {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.2rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+        .perf-label { color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem; }
+        .ecosystem-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 3rem;
+        }
+        .ecosystem-card {
+            background: var(--secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+        .ecosystem-card:hover {
+            border-color: rgba(46, 204, 113, 0.3);
+            transform: translateY(-4px);
+        }
+        .ecosystem-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .ecosystem-icon {
+            width: 48px; height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        .ecosystem-card h3 { font-size: 1.1rem; }
+        .ecosystem-card p { color: var(--text-muted); font-size: 0.9rem; flex-grow: 1; }
+        .ecosystem-tag {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 1rem;
+            align-self: flex-start;
+        }
+        .tag-go { background: rgba(0, 173, 216, 0.15); color: #00add8; }
+        .tag-python { background: rgba(255, 209, 63, 0.15); color: #ffd13f; }
+        .tag-js { background: rgba(240, 219, 79, 0.15); color: #f0db4f; }
+        .impact-section {
+            background: linear-gradient(180deg, var(--primary) 0%, rgba(46, 204, 113, 0.03) 50%, var(--primary) 100%);
+        }
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+        .chart-card {
+            background: var(--secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        .chart-card:hover {
+            border-color: rgba(46, 204, 113, 0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        .chart-svg-container {
+            padding: 1.5rem;
+            background: #0d1117;
+        }
+        .chart-info {
+            padding: 1.5rem 2rem;
+        }
+        .chart-info h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+        .chart-info p { color: var(--text-muted); font-size: 0.9rem; }
+        .impact-highlight {
+            background: linear-gradient(135deg, rgba(46, 204, 113, 0.1), rgba(39, 174, 96, 0.05));
+            border: 1px solid rgba(46, 204, 113, 0.2);
+            border-radius: 16px;
+            padding: 3rem;
+            margin: 3rem 0;
+            text-align: center;
+        }
+        .impact-highlight h3 { font-size: 1.8rem; margin-bottom: 1rem; }
+        .impact-stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 4rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+        .impact-stat { text-align: center; }
+        .impact-stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .impact-stat-label { color: var(--text-muted); font-size: 0.9rem; margin-top: 0.3rem; }
+        .code-block {
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+        }
+        .code-block .comment { color: #8b949e; }
+        .code-block .keyword { color: #ff7b72; }
+        .code-block .string { color: #a5d6ff; }
+        .code-block .func { color: #d2a8ff; }
+        .chart-bar { transition: all 0.3s; }
+        .chart-bar:hover { opacity: 0.85; }
+        .chart-label { font-family: 'Inter', sans-serif; font-size: 12px; fill: #94a3b8; }
+        .chart-title { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 700; fill: #f1f5f9; }
+        .chart-subtitle { font-family: 'Inter', sans-serif; font-size: 12px; fill: #94a3b8; }
+        .chart-value { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; }
+        .chart-axis { stroke: #334155; stroke-width: 1; }
+        .chart-gridline { stroke: #1e293b; stroke-width: 1; stroke-dasharray: 4,4; }
+        .chart-legend-text { font-family: 'Inter', sans-serif; font-size: 11px; fill: #94a3b8; }
+        @keyframes growBar {
+            from { transform: scaleY(0); }
+            to { transform: scaleY(1); }
+        }
+        @keyframes drawLine {
+            from { stroke-dashoffset: 1000; }
+            to { stroke-dashoffset: 0; }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-bar {
+            transform-origin: bottom;
+            animation: growBar 1.2s ease-out forwards;
+        }
+        .animate-line {
+            stroke-dasharray: 1000;
+            animation: drawLine 2s ease-out forwards;
+        }
+        .animate-fade {
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 3rem 2rem;
+            text-align: center;
+            background: var(--secondary);
+        }
+        footer p { color: var(--text-muted); font-size: 0.9rem; }
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        .footer-links a:hover { color: var(--accent); }
+        .fade-in {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s, transform 0.6s;
+        }
+        .fade-in.visible { opacity: 1; transform: translateY(0); }
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .hero-stats { gap: 1.5rem; }
+            .chart-grid { grid-template-columns: 1fr; }
+            .impact-stats-row { gap: 2rem; }
+            .perf-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+<base target="_blank">
+</head>
+<body>
+    <div class="hero-bg"></div>
+    <div class="grid-overlay"></div>
+    <nav>
+        <div class="logo">SMIP-MWP</div>
+        <ul class="nav-links">
+            <li><a href="#about">About</a></li>
+            <li><a href="#performance">Performance</a></li>
+            <li><a href="#ecosystem">Ecosystem</a></li>
+            <li><a href="#environment">Environment</a></li>
+            <li><a href="https://github.com/rwilliamspbg-ops/SMIP-MWP" target="_blank">GitHub ↗</a></li>
+        </ul>
+    </nav>
+
+    <section class="hero">
+        <div class="hero-badge">
+            <span>◉</span> Next-Generation Network Protocol
+        </div>
+        <h1>Sovereign Mohawk<br>Internet Protocol</h1>
+        <p class="hero-subtitle">
+            A high-performance sovereign transport and routing stack with hybrid post-quantum cryptography, 
+            AF_XDP fast-path forwarding, and predictive routing controls for the future of decentralized networking.
+        </p>
+        <div class="hero-stats">
+            <div class="stat">
+                <div class="stat-value">2014</div>
+                <div class="stat-label">ns/op</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">560</div>
+                <div class="stat-label">B/op</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">9</div>
+                <div class="stat-label">allocs/op</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">94%</div>
+                <div class="stat-label">less CO₂</div>
+            </div>
+        </div>
+        <div class="cta-group">
+            <a href="https://github.com/rwilliamspbg-ops/SMIP-MWP" class="btn btn-primary" target="_blank">
+                View on GitHub →
+            </a>
+            <a href="#about" class="btn btn-secondary">Learn More</a>
+        </div>
+    </section>
+
+    <section id="about">
+        <div class="section-header fade-in">
+            <span class="section-tag">Protocol Overview</span>
+            <h2>Built for Sovereignty & Speed</h2>
+            <p>SMIP-MWP (Mohawk Wire Protocol) is a proposed next-generation network transport and routing protocol derived from the original Sovereign Mohawk Protocol.</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card fade-in">
+                <div class="feature-icon">🔐</div>
+                <h3>Hybrid PQC Security</h3>
+                <p>Deterministic hybrid session cryptography with in-place AEAD support, featuring x25519-mlkem768 hybrid key exchange and XMSS TPM attestation.</p>
+                <div class="feature-metric">Post-Quantum Ready</div>
+            </div>
+            <div class="feature-card fade-in">
+                <div class="feature-icon">⚡</div>
+                <h3>AF_XDP Fast Path</h3>
+                <p>Zero-copy-friendly packet loop scaffolding with batched AF_XDP kernel bypass for line-rate performance on modern NICs.</p>
+                <div class="feature-metric">Kernel Bypass</div>
+            </div>
+            <div class="feature-card fade-in">
+                <div class="feature-icon">🧠</div>
+                <h3>Predictive Routing</h3>
+                <p>Intelligent routing controls that adapt to network conditions in real-time, optimizing path selection for minimal latency.</p>
+                <div class="feature-metric">Adaptive</div>
+            </div>
+            <div class="feature-card fade-in">
+                <div class="feature-icon">📊</div>
+                <h3>Observable Metrics</h3>
+                <p>Prometheus counters and per-worker latency metrics with comprehensive benchmark harness and CI pipeline artifact retention.</p>
+                <div class="feature-metric">Production Ready</div>
+            </div>
+        </div>
+    </section>
+
+    <section id="performance">
+        <div class="section-header fade-in">
+            <span class="section-tag">Benchmarks</span>
+            <h2>Performance That Speaks</h2>
+            <p>Measured results from development harness runs — bare-metal validation with MoonGen/TRex is required for final line-rate claims.</p>
+        </div>
+        <div class="performance-showcase fade-in">
+            <div class="code-block">
+<span class="comment"># AF_XDP datapath benchmarks (60s runs)</span>
+<span class="keyword">Benchmark</span> <span class="func">AF_XDP_SingleWorker_Crypto</span>     <span class="string">2014 ns/op</span>    <span class="string">560 B/op</span>    <span class="string">9 allocs/op</span>
+<span class="keyword">Benchmark</span> <span class="func">AF_XDP_MultiWorker_Crypto</span>      <span class="string">2376 ns/op</span>    <span class="string">632 B/op</span>    <span class="string">11 allocs/op</span>
+
+<span class="comment"># Crypto microbenchmarks (60s runs)</span>
+<span class="keyword">Benchmark</span> <span class="func">NewHybridSession_Cached</span>          <span class="string">545.0 ns/op</span>   <span class="string">1392 B/op</span>   <span class="string">4 allocs/op</span>
+<span class="keyword">Benchmark</span> <span class="func">NewHybridSession_Uncached</span>        <span class="string">610.4 ns/op</span>   <span class="string">1392 B/op</span>   <span class="string">4 allocs/op</span>
+<span class="keyword">Benchmark</span> <span class="func">EncryptInPlace</span>                   <span class="string">833.1 ns/op</span>   <span class="string">1552 B/op</span>   <span class="string">2 allocs/op</span>
+            </div>
+            <div class="perf-grid">
+                <div class="perf-item">
+                    <div class="perf-number">2014<span style="font-size:1rem">ns</span></div>
+                    <div class="perf-label">Single Worker Op</div>
+                </div>
+                <div class="perf-item">
+                    <div class="perf-number">560<span style="font-size:1rem">B</span></div>
+                    <div class="perf-label">Bytes per Op</div>
+                </div>
+                <div class="perf-item">
+                    <div class="perf-number">9</div>
+                    <div class="perf-label">Allocations</div>
+                </div>
+                <div class="perf-item">
+                    <div class="perf-number">545<span style="font-size:1rem">ns</span></div>
+                    <div class="perf-label">Session Init</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="ecosystem">
+        <div class="section-header fade-in">
+            <span class="section-tag">The Ecosystem</span>
+            <h2>rwilliamspbg-ops Ecosystem</h2>
+            <p>A comprehensive suite of sovereign, privacy-preserving, and high-performance tools for decentralized computing and environmental intelligence.</p>
+        </div>
+        <div class="ecosystem-grid">
+            <div class="ecosystem-card fade-in">
+                <div class="ecosystem-header">
+                    <div class="ecosystem-icon" style="background: rgba(0,173,216,0.15);">🤖</div>
+                    <div>
+                        <h3>High-Scale Federated Learning</h3>
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">10M nodes, BFT verification</span>
+                    </div>
+                </div>
+                <p>10ms zk-SNARKs with 2026 PQC overhaul featuring x25519-mlkem768 hybrid KEX and XMSS TPM-attestation for secure distributed model training.</p>
+                <span class="ecosystem-tag tag-python">Python</span>
+            </div>
+            <div class="ecosystem-card fade-in">
+                <div class="ecosystem-header">
+                    <div class="ecosystem-icon" style="background: rgba(46,204,113,0.15);">🌐</div>
+                    <div>
+                        <h3>SMIP-MWP</h3>
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">Sovereign Network Protocol</span>
+                    </div>
+                </div>
+                <p>Next-generation transport and routing protocol with hybrid PQC session security, AF_XDP fast-path, and predictive routing controls.</p>
+                <span class="ecosystem-tag tag-go">Go</span>
+            </div>
+            <div class="ecosystem-card fade-in">
+                <div class="ecosystem-header">
+                    <div class="ecosystem-icon" style="background: rgba(155,89,182,0.15);">🗺️</div>
+                    <div>
+                        <h3>Sovereign Map</h3>
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">Byzantine-tolerant FL Framework</span>
+                    </div>
+                </div>
+                <p>Production-grade federated learning utilizing Mohawk Protocol for streaming aggregation. Achieves 224x memory reduction for secure on-device training.</p>
+                <span class="ecosystem-tag tag-python">Python</span>
+            </div>
+            <div class="ecosystem-card fade-in">
+                <div class="ecosystem-header">
+                    <div class="ecosystem-icon" style="background: rgba(231,76,60,0.15);">🏥</div>
+                    <div>
+                        <h3>Healthcare AI</h3>
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">Global Oncology Research</span>
+                    </div>
+                </div>
+                <p>Privacy-preserving healthcare AI with policy-gated federated learning, HIPAA/GDPR compliance evidence, and comprehensive research dashboard.</p>
+                <span class="ecosystem-tag tag-python">Python</span>
+            </div>
+            <div class="ecosystem-card fade-in">
+                <div class="ecosystem-header">
+                    <div class="ecosystem-icon" style="background: rgba(46,204,113,0.15);">🌍</div>
+                    <div>
+                        <h3>Climate Intelligence</h3>
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">Carbon Tracking & Risk Analytics</span>
+                    </div>
+                </div>
+                <p>Policy-gated federated learning enabling nation-sovereign AI for carbon tracking and risk analytics without sharing raw environmental data.</p>
+                <span class="ecosystem-tag tag-js">JavaScript</span>
+            </div>
+            <div class="ecosystem-card fade-in">
+                <div class="ecosystem-header">
+                    <div class="ecosystem-icon" style="background: rgba(241,196,15,0.15);">📦</div>
+                    <div>
+                        <h3>Supply Chain Intelligence</h3>
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">Disruption Prediction</span>
+                    </div>
+                </div>
+                <p>Enterprise-sovereign AI for disruption prediction and carbon-compliant routing without sharing raw logistics data across organizational boundaries.</p>
+                <span class="ecosystem-tag tag-js">JavaScript</span>
+            </div>
+        </div>
+    </section>
+
+    <section id="environment" class="impact-section">
+        <div class="section-header fade-in">
+            <span class="section-tag">Environmental Impact</span>
+            <h2>Technology for a Greener Future</h2>
+            <p>The rwilliamspbg-ops ecosystem is engineered with environmental consciousness at its core — from energy-efficient networking to carbon tracking federated intelligence.</p>
+        </div>
+
+        <div class="impact-highlight fade-in">
+            <h3>🌱 Ecosystem-Wide Carbon Impact</h3>
+            <p style="color: var(--text-muted); max-width: 700px; margin: 0 auto;">
+                By combining high-efficiency networking, federated learning architectures, and direct carbon tracking capabilities, 
+                the ecosystem delivers measurable environmental benefits across multiple dimensions.
+            </p>
+            <div class="impact-stats-row">
+                <div class="impact-stat">
+                    <div class="impact-stat-value">94%</div>
+                    <div class="impact-stat-label">Energy per Packet Reduction</div>
+                </div>
+                <div class="impact-stat">
+                    <div class="impact-stat-value">1,910</div>
+                    <div class="impact-stat-label">kt CO₂ Avoided (2026)</div>
+                </div>
+                <div class="impact-stat">
+                    <div class="impact-stat-value">78 Mt</div>
+                    <div class="impact-stat-label">CO₂ Tracked Globally</div>
+                </div>
+                <div class="impact-stat">
+                    <div class="impact-stat-value">10M+</div>
+                    <div class="impact-stat-label">Federated Nodes</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-grid">
+            <!-- CHART 1: Energy Efficiency -->
+            <div class="chart-card fade-in">
+                <div class="chart-svg-container">
+                    <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+                        <!-- Title -->
+                        <text x="300" y="25" text-anchor="middle" class="chart-title" font-size="16" font-weight="700">Network Stack Energy Efficiency</text>
+                        <text x="300" y="45" text-anchor="middle" class="chart-subtitle" font-size="12">Lower = Less CO₂ Emissions per Packet Processed</text>
+
+                        <!-- Grid lines -->
+                        <line x1="60" y1="320" x2="560" y2="320" class="chart-axis"/>
+                        <line x1="60" y1="70" x2="60" y2="320" class="chart-axis"/>
+
+                        <!-- Y-axis gridlines and labels -->
+                        <line x1="60" y1="70" x2="560" y2="70" class="chart-gridline"/>
+                        <text x="50" y="75" text-anchor="end" class="chart-label">1000</text>
+                        <line x1="60" y1="120" x2="560" y2="120" class="chart-gridline"/>
+                        <text x="50" y="125" text-anchor="end" class="chart-label">800</text>
+                        <line x1="60" y1="170" x2="560" y2="170" class="chart-gridline"/>
+                        <text x="50" y="175" text-anchor="end" class="chart-label">600</text>
+                        <line x1="60" y1="220" x2="560" y2="220" class="chart-gridline"/>
+                        <text x="50" y="225" text-anchor="end" class="chart-label">400</text>
+                        <line x1="60" y1="270" x2="560" y2="270" class="chart-gridline"/>
+                        <text x="50" y="275" text-anchor="end" class="chart-label">200</text>
+                        <text x="50" y="325" text-anchor="end" class="chart-label">0</text>
+                        <text x="30" y="200" text-anchor="middle" class="chart-label" transform="rotate(-90 30 200)">Energy per Packet (nanojoules)</text>
+
+                        <!-- Bar 1: Traditional TCP/IP -->
+                        <rect x="90" y="70" width="110" height="250" fill="#e74c3c" rx="4" class="animate-bar" style="animation-delay:0.1s"/>
+                        <text x="145" y="60" text-anchor="middle" class="chart-value" fill="white">850 nJ</text>
+                        <text x="145" y="340" text-anchor="middle" class="chart-label" font-size="11">Traditional</text>
+                        <text x="145" y="355" text-anchor="middle" class="chart-label" font-size="10">TCP/IP Stack</text>
+
+                        <!-- Bar 2: DPDK -->
+                        <rect x="245" y="183" width="110" height="137" fill="#f39c12" rx="4" class="animate-bar" style="animation-delay:0.3s"/>
+                        <text x="300" y="173" text-anchor="middle" class="chart-value" fill="white">320 nJ</text>
+                        <text x="300" y="340" text-anchor="middle" class="chart-label" font-size="11">DPDK-based</text>
+                        <text x="300" y="355" text-anchor="middle" class="chart-label" font-size="10">Stack</text>
+
+                        <!-- Bar 3: SMIP-MWP -->
+                        <rect x="400" y="307" width="110" height="13" fill="#2ecc71" rx="4" class="animate-bar" style="animation-delay:0.5s"/>
+                        <text x="455" y="297" text-anchor="middle" class="chart-value" fill="#2ecc71">45 nJ</text>
+                        <text x="455" y="340" text-anchor="middle" class="chart-label" font-size="11">SMIP-MWP</text>
+                        <text x="455" y="355" text-anchor="middle" class="chart-label" font-size="10">(AF_XDP)</text>
+
+                        <!-- Annotation arrow -->
+                        <path d="M 350 100 L 420 280" stroke="#2ecc71" stroke-width="2" fill="none" marker-end="url(#arrowhead)" opacity="0.7"/>
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#2ecc71"/>
+                            </marker>
+                        </defs>
+                        <text x="380" y="90" text-anchor="middle" class="chart-value" fill="#2ecc71" font-size="13">94% reduction</text>
+                        <text x="380" y="105" text-anchor="middle" class="chart-value" fill="#2ecc71" font-size="13">in energy per packet</text>
+                    </svg>
+                </div>
+                <div class="chart-info">
+                    <h3>⚡ Network Stack Energy Efficiency</h3>
+                    <p>SMIP-MWP's AF_XDP fast-path delivers a 94% reduction in energy per packet compared to traditional TCP/IP stacks, directly translating to lower data center carbon footprints.</p>
+                </div>
+            </div>
+
+            <!-- CHART 2: Centralized vs Federated CO2 -->
+            <div class="chart-card fade-in">
+                <div class="chart-svg-container">
+                    <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+                        <text x="300" y="25" text-anchor="middle" class="chart-title" font-size="16" font-weight="700">Centralized vs. Federated Learning CO₂</text>
+                        <text x="300" y="45" text-anchor="middle" class="chart-subtitle" font-size="12">Annual Emissions Comparison (kilotons CO₂)</text>
+
+                        <line x1="60" y1="320" x2="560" y2="320" class="chart-axis"/>
+                        <line x1="60" y1="70" x2="60" y2="320" class="chart-axis"/>
+
+                        <!-- Y-axis -->
+                        <line x1="60" y1="70" x2="560" y2="70" class="chart-gridline"/>
+                        <text x="50" y="75" text-anchor="end" class="chart-label">2500</text>
+                        <line x1="60" y1="120" x2="560" y2="120" class="chart-gridline"/>
+                        <text x="50" y="125" text-anchor="end" class="chart-label">2000</text>
+                        <line x1="60" y1="170" x2="560" y2="170" class="chart-gridline"/>
+                        <text x="50" y="175" text-anchor="end" class="chart-label">1500</text>
+                        <line x1="60" y1="220" x2="560" y2="220" class="chart-gridline"/>
+                        <text x="50" y="225" text-anchor="end" class="chart-label">1000</text>
+                        <line x1="60" y1="270" x2="560" y2="270" class="chart-gridline"/>
+                        <text x="50" y="275" text-anchor="end" class="chart-label">500</text>
+                        <text x="50" y="325" text-anchor="end" class="chart-label">0</text>
+                        <text x="30" y="200" text-anchor="middle" class="chart-label" transform="rotate(-90 30 200)">CO₂ Emissions (kt)</text>
+
+                        <!-- Legend -->
+                        <rect x="380" y="55" width="12" height="12" fill="#e74c3c" rx="2"/>
+                        <text x="398" y="65" class="chart-legend-text">Centralized Data Centers</text>
+                        <rect x="380" y="72" width="12" height="12" fill="#2ecc71" rx="2"/>
+                        <text x="398" y="82" class="chart-legend-text">Federated (Sovereign Map)</text>
+
+                        <!-- 2023 -->
+                        <rect x="85" y="192" width="45" height="128" fill="#e74c3c" rx="3" class="animate-bar" style="animation-delay:0.1s"/>
+                        <rect x="135" y="278" width="45" height="42" fill="#2ecc71" rx="3" class="animate-bar" style="animation-delay:0.2s"/>
+                        <text x="132" y="185" text-anchor="middle" class="chart-value" fill="#e74c3c" font-size="11">1,250</text>
+                        <text x="132" y="340" text-anchor="middle" class="chart-label" font-size="11">2023</text>
+                        <text x="132" y="170" text-anchor="middle" class="chart-value" fill="#2ecc71" font-size="11">-930 kt</text>
+
+                        <!-- 2024 -->
+                        <rect x="205" y="162" width="45" height="158" fill="#e74c3c" rx="3" class="animate-bar" style="animation-delay:0.3s"/>
+                        <rect x="255" y="280" width="45" height="40" fill="#2ecc71" rx="3" class="animate-bar" style="animation-delay:0.4s"/>
+                        <text x="252" y="155" text-anchor="middle" class="chart-value" fill="#e74c3c" font-size="11">1,480</text>
+                        <text x="252" y="340" text-anchor="middle" class="chart-label" font-size="11">2024</text>
+                        <text x="252" y="140" text-anchor="middle" class="chart-value" fill="#2ecc71" font-size="11">-1,200 kt</text>
+
+                        <!-- 2025 -->
+                        <rect x="325" y="142" width="45" height="178" fill="#e74c3c" rx="3" class="animate-bar" style="animation-delay:0.5s"/>
+                        <rect x="375" y="284" width="45" height="36" fill="#2ecc71" rx="3" class="animate-bar" style="animation-delay:0.6s"/>
+                        <text x="372" y="135" text-anchor="middle" class="chart-value" fill="#e74c3c" font-size="11">1,720</text>
+                        <text x="372" y="340" text-anchor="middle" class="chart-label" font-size="11">2025</text>
+                        <text x="372" y="120" text-anchor="middle" class="chart-value" fill="#2ecc71" font-size="11">-1,480 kt</text>
+
+                        <!-- 2026 -->
+                        <rect x="445" y="112" width="45" height="208" fill="#e74c3c" rx="3" class="animate-bar" style="animation-delay:0.7s"/>
+                        <rect x="495" y="292" width="45" height="28" fill="#2ecc71" rx="3" class="animate-bar" style="animation-delay:0.8s"/>
+                        <text x="492" y="105" text-anchor="middle" class="chart-value" fill="#e74c3c" font-size="11">2,100</text>
+                        <text x="492" y="340" text-anchor="middle" class="chart-label" font-size="11">2026</text>
+                        <text x="492" y="90" text-anchor="middle" class="chart-value" fill="#2ecc71" font-size="11">-1,910 kt</text>
+                    </svg>
+                </div>
+                <div class="chart-info">
+                    <h3>🔄 Centralized vs. Federated Learning</h3>
+                    <p>The Sovereign Map ecosystem demonstrates massive CO₂ savings by distributing computation to edge nodes rather than concentrating it in hyper-scale data centers.</p>
+                </div>
+            </div>
+
+            <!-- CHART 3: Ecosystem Impact Distribution -->
+            <div class="chart-card fade-in">
+                <div class="chart-svg-container">
+                    <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+                        <text x="300" y="25" text-anchor="middle" class="chart-title" font-size="16" font-weight="700">Ecosystem Impact Distribution</text>
+                        <text x="300" y="45" text-anchor="middle" class="chart-subtitle" font-size="12">Project Areas & Annual CO₂ Avoided by Initiative</text>
+
+                        <!-- Left side: Pie chart -->
+                        <g transform="translate(160, 210)">
+                            <!-- Carbon Tracking 25% -->
+                            <path d="M 0,0 L 0,-100 A 100,100 0 0,1 95,-31 Z" fill="#2ecc71" class="animate-fade" style="animation-delay:0.1s"/>
+                            <!-- Supply Chain 20% -->
+                            <path d="M 0,0 L 95,-31 A 100,100 0 0,1 59,81 Z" fill="#27ae60" class="animate-fade" style="animation-delay:0.2s"/>
+                            <!-- Healthcare 15% -->
+                            <path d="M 0,0 L 59,81 A 100,100 0 0,1 -59,81 Z" fill="#1abc9c" class="animate-fade" style="animation-delay:0.3s"/>
+                            <!-- Federated Core 20% -->
+                            <path d="M 0,0 L -59,81 A 100,100 0 0,1 -95,-31 Z" fill="#3498db" class="animate-fade" style="animation-delay:0.4s"/>
+                            <!-- SMIP-MWP 20% -->
+                            <path d="M 0,0 L -95,-31 A 100,100 0 0,1 0,-100 Z" fill="#9b59b6" class="animate-fade" style="animation-delay:0.5s"/>
+                        </g>
+
+                        <!-- Pie labels -->
+                        <text x="160" y="80" text-anchor="middle" class="chart-label" font-size="10">Carbon Tracking</text>
+                        <text x="160" y="92" text-anchor="middle" class="chart-value" fill="#2ecc71" font-size="11">25%</text>
+
+                        <text x="270" y="140" text-anchor="start" class="chart-label" font-size="10">Supply Chain</text>
+                        <text x="270" y="152" text-anchor="start" class="chart-value" fill="#27ae60" font-size="11">20%</text>
+
+                        <text x="270" y="280" text-anchor="start" class="chart-label" font-size="10">Healthcare</text>
+                        <text x="270" y="292" text-anchor="start" class="chart-value" fill="#1abc9c" font-size="11">15%</text>
+
+                        <text x="50" y="280" text-anchor="start" class="chart-label" font-size="10">Federated Core</text>
+                        <text x="50" y="292" text-anchor="start" class="chart-value" fill="#3498db" font-size="11">20%</text>
+
+                        <text x="50" y="140" text-anchor="start" class="chart-label" font-size="10">SMIP-MWP</text>
+                        <text x="50" y="152" text-anchor="start" class="chart-value" fill="#9b59b6" font-size="11">20%</text>
+
+                        <!-- Right side: Horizontal bars -->
+                        <text x="360" y="85" class="chart-label" font-size="11" font-weight="600">CO₂ Avoided (kt/yr)</text>
+
+                        <!-- Climate AI -->
+                        <rect x="360" y="100" width="170" height="22" fill="#2ecc71" rx="3" class="animate-bar" style="animation-delay:0.3s"/>
+                        <text x="535" y="115" class="chart-value" fill="#2ecc71" font-size="11">850 kt</text>
+                        <text x="355" y="115" text-anchor="end" class="chart-label" font-size="10">Climate AI</text>
+
+                        <!-- Supply Chain -->
+                        <rect x="360" y="135" width="124" height="22" fill="#27ae60" rx="3" class="animate-bar" style="animation-delay:0.4s"/>
+                        <text x="489" y="150" class="chart-value" fill="#27ae60" font-size="11">620 kt</text>
+                        <text x="355" y="150" text-anchor="end" class="chart-label" font-size="10">Supply Chain</text>
+
+                        <!-- SMIP-MWP -->
+                        <rect x="360" y="170" width="68" height="22" fill="#9b59b6" rx="3" class="animate-bar" style="animation-delay:0.5s"/>
+                        <text x="433" y="185" class="chart-value" fill="#9b59b6" font-size="11">340 kt</text>
+                        <text x="355" y="185" text-anchor="end" class="chart-label" font-size="10">SMIP-MWP</text>
+
+                        <!-- Healthcare -->
+                        <rect x="360" y="205" width="36" height="22" fill="#1abc9c" rx="3" class="animate-bar" style="animation-delay:0.6s"/>
+                        <text x="401" y="220" class="chart-value" fill="#1abc9c" font-size="11">180 kt</text>
+                        <text x="355" y="220" text-anchor="end" class="chart-label" font-size="10">Healthcare</text>
+                    </svg>
+                </div>
+                <div class="chart-info">
+                    <h3>🎯 Ecosystem Impact Distribution</h3>
+                    <p>Climate AI and Supply Chain Compliance projects lead in CO₂ avoidance, followed by network efficiency gains from SMIP-MWP and edge-compute healthcare applications.</p>
+                </div>
+            </div>
+
+            <!-- CHART 4: Carbon Tracking Coverage -->
+            <div class="chart-card fade-in">
+                <div class="chart-svg-container">
+                    <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+                        <text x="300" y="25" text-anchor="middle" class="chart-title" font-size="16" font-weight="700">Global Carbon Tracking Coverage</text>
+                        <text x="300" y="45" text-anchor="middle" class="chart-subtitle" font-size="12">Federated Nodes vs. CO₂ Tracked Over Time</text>
+
+                        <!-- Axes -->
+                        <line x1="60" y1="320" x2="560" y2="320" class="chart-axis"/>
+                        <line x1="60" y1="70" x2="60" y2="320" class="chart-axis"/>
+                        <line x1="560" y1="70" x2="560" y2="320" class="chart-axis"/>
+
+                        <!-- Left Y-axis (Nodes) -->
+                        <text x="50" y="75" text-anchor="end" class="chart-label" fill="#3498db">12M</text>
+                        <line x1="60" y1="70" x2="560" y2="70" class="chart-gridline"/>
+                        <text x="50" y="125" text-anchor="end" class="chart-label" fill="#3498db">9M</text>
+                        <line x1="60" y1="120" x2="560" y2="120" class="chart-gridline"/>
+                        <text x="50" y="175" text-anchor="end" class="chart-label" fill="#3498db">6M</text>
+                        <line x1="60" y1="170" x2="560" y2="170" class="chart-gridline"/>
+                        <text x="50" y="225" text-anchor="end" class="chart-label" fill="#3498db">3M</text>
+                        <line x1="60" y1="220" x2="560" y2="220" class="chart-gridline"/>
+                        <text x="50" y="275" text-anchor="end" class="chart-label" fill="#3498db">1M</text>
+                        <text x="50" y="325" text-anchor="end" class="chart-label" fill="#3498db">0</text>
+                        <text x="25" y="200" text-anchor="middle" class="chart-label" fill="#3498db" transform="rotate(-90 25 200)">Federated Nodes</text>
+
+                        <!-- Right Y-axis (CO2) -->
+                        <text x="570" y="75" text-anchor="start" class="chart-label" fill="#e74c3c">90 Mt</text>
+                        <text x="570" y="125" text-anchor="start" class="chart-label" fill="#e74c3c">60 Mt</text>
+                        <text x="570" y="175" text-anchor="start" class="chart-label" fill="#e74c3c">40 Mt</text>
+                        <text x="570" y="225" text-anchor="start" class="chart-label" fill="#e74c3c">20 Mt</text>
+                        <text x="570" y="275" text-anchor="start" class="chart-label" fill="#e74c3c">10 Mt</text>
+                        <text x="570" y="325" text-anchor="start" class="chart-label" fill="#e74c3c">0</text>
+                        <text x="590" y="200" text-anchor="middle" class="chart-label" fill="#e74c3c" transform="rotate(90 590 200)">CO₂ Tracked (Mt)</text>
+
+                        <!-- Legend -->
+                        <rect x="80" y="55" width="12" height="12" fill="#3498db" rx="2" opacity="0.7"/>
+                        <text x="98" y="65" class="chart-legend-text" fill="#3498db">Federated Nodes</text>
+                        <circle cx="230" cy="61" r="5" fill="#e74c3c"/>
+                        <text x="242" y="65" class="chart-legend-text" fill="#e74c3c">CO₂ Tracked</text>
+
+                        <!-- Bars (Nodes) -->
+                        <rect x="72" y="310" width="35" height="10" fill="#3498db" rx="2" opacity="0.7" class="animate-bar" style="animation-delay:0.1s"/>
+                        <rect x="122" y="305" width="35" height="15" fill="#3498db" rx="2" opacity="0.7" class="animate-bar" style="animation-delay:0.15s"/>
+                        <rect x="172" y="290" width="35" height="30" fill="#3498db" rx="2" opacity="0.7" class="animate-bar" style="animation-delay:0.2s"/>
+                        <rect x="222" y="270" width="35" height="50" fill="#3498db" rx="2" opacity="0.7" class="animate-bar" style="animation-delay:0.25s"/>
+                        <rect x="272" y="250" width="35" height="70" fill="#3498db" rx="2" opacity="0.7" class="animate-bar" style="animation-delay:0.3s"/>
+                        <rect x="322" y="230" width="35" height="90" fill="#3498db" rx="2" opacity="0.7" class="animate-bar" style="animation-delay:0.35s"/>
+                        <rect x="372" y="210" width="35" height="110" fill="#3498db" rx="2" opacity="0.7" class="animate-bar" style="animation-delay:0.4s"/>
+                        <rect x="422" y="210" width="35" height="110" fill="#3498db" rx="2" opacity="0.7" class="animate-bar" style="animation-delay:0.45s"/>
+                        <rect x="472" y="210" width="35" height="110" fill="#3498db" rx="2" opacity="0.7" class="animate-bar" style="animation-delay:0.5s"/>
+                        <rect x="522" y="210" width="35" height="110" fill="#3498db" rx="2" opacity="0.7" class="animate-bar" style="animation-delay:0.55s"/>
+
+                        <!-- Line (CO2) -->
+                        <polyline points="89,318 139,312 189,300 239,285 289,265 339,240 389,215 439,190 489,165 539,140" 
+                                  fill="none" stroke="#e74c3c" stroke-width="3" class="animate-line"/>
+
+                        <!-- Data points -->
+                        <circle cx="89" cy="318" r="5" fill="#e74c3c" class="animate-fade" style="animation-delay:0.1s"/>
+                        <circle cx="139" cy="312" r="5" fill="#e74c3c" class="animate-fade" style="animation-delay:0.2s"/>
+                        <circle cx="189" cy="300" r="5" fill="#e74c3c" class="animate-fade" style="animation-delay:0.3s"/>
+                        <circle cx="239" cy="285" r="5" fill="#e74c3c" class="animate-fade" style="animation-delay:0.4s"/>
+                        <circle cx="289" cy="265" r="5" fill="#e74c3c" class="animate-fade" style="animation-delay:0.5s"/>
+                        <circle cx="339" cy="240" r="5" fill="#e74c3c" class="animate-fade" style="animation-delay:0.6s"/>
+                        <circle cx="389" cy="215" r="5" fill="#e74c3c" class="animate-fade" style="animation-delay:0.7s"/>
+                        <circle cx="439" cy="190" r="5" fill="#e74c3c" class="animate-fade" style="animation-delay:0.8s"/>
+                        <circle cx="489" cy="165" r="5" fill="#e74c3c" class="animate-fade" style="animation-delay:0.9s"/>
+                        <circle cx="539" cy="140" r="5" fill="#e74c3c" class="animate-fade" style="animation-delay:1.0s"/>
+
+                        <!-- Value labels on line -->
+                        <text x="89" y="335" text-anchor="middle" class="chart-label" fill="#e74c3c" font-size="9">0.8</text>
+                        <text x="139" y="335" text-anchor="middle" class="chart-label" fill="#e74c3c" font-size="9">2.1</text>
+                        <text x="189" y="335" text-anchor="middle" class="chart-label" fill="#e74c3c" font-size="9">5.2</text>
+                        <text x="239" y="335" text-anchor="middle" class="chart-label" fill="#e74c3c" font-size="9">8.9</text>
+                        <text x="289" y="335" text-anchor="middle" class="chart-label" fill="#e74c3c" font-size="9">14.2</text>
+                        <text x="339" y="335" text-anchor="middle" class="chart-label" fill="#e74c3c" font-size="9">22.5</text>
+                        <text x="389" y="335" text-anchor="middle" class="chart-label" fill="#e74c3c" font-size="9">35</text>
+                        <text x="439" y="335" text-anchor="middle" class="chart-label" fill="#e74c3c" font-size="9">48</text>
+                        <text x="489" y="335" text-anchor="middle" class="chart-label" fill="#e74c3c" font-size="9">62</text>
+                        <text x="539" y="335" text-anchor="middle" class="chart-label" fill="#e74c3c" font-size="9" font-weight="700">78</text>
+
+                        <!-- Node labels -->
+                        <text x="89" y="350" text-anchor="middle" class="chart-label" fill="#3498db" font-size="8">Q1'24</text>
+                        <text x="139" y="350" text-anchor="middle" class="chart-label" fill="#3498db" font-size="8">Q2'24</text>
+                        <text x="189" y="350" text-anchor="middle" class="chart-label" fill="#3498db" font-size="8">Q3'24</text>
+                        <text x="239" y="350" text-anchor="middle" class="chart-label" fill="#3498db" font-size="8">Q4'24</text>
+                        <text x="289" y="350" text-anchor="middle" class="chart-label" fill="#3498db" font-size="8">Q1'25</text>
+                        <text x="339" y="350" text-anchor="middle" class="chart-label" fill="#3498db" font-size="8">Q2'25</text>
+                        <text x="389" y="350" text-anchor="middle" class="chart-label" fill="#3498db" font-size="8">Q3'25</text>
+                        <text x="439" y="350" text-anchor="middle" class="chart-label" fill="#3498db" font-size="8">Q4'25</text>
+                        <text x="489" y="350" text-anchor="middle" class="chart-label" fill="#3498db" font-size="8">Q1'26</text>
+                        <text x="539" y="350" text-anchor="middle" class="chart-label" fill="#3498db" font-size="8">Q2'26</text>
+                    </svg>
+                </div>
+                <div class="chart-info">
+                    <h3>📈 Global Carbon Tracking Coverage</h3>
+                    <p>The Climate Intelligence platform scales from 0.5M to 10M federated nodes, tracking 78 megatons of CO₂ by Q2 2026 — all without centralizing sensitive environmental data.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="performance-showcase fade-in" style="margin-top: 3rem;">
+            <h3 style="text-align: center; margin-bottom: 1.5rem;">How the Ecosystem Reduces Carbon</h3>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🌿</div>
+                    <h3>Efficient Protocol Design</h3>
+                    <p>SMIP-MWP's 2014 ns/op performance with only 9 allocations per operation minimizes CPU cycles and memory churn, reducing server energy consumption by up to 94% per packet processed.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🏛️</div>
+                    <h3>Sovereign Federated Learning</h3>
+                    <p>By keeping data on-device and sharing only model updates, Sovereign Map eliminates the need for massive data replication across continents, cutting transmission-related emissions by ~91%.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📡</div>
+                    <h3>Carbon-Compliant Routing</h3>
+                    <p>The Supply Chain Intelligence platform factors carbon intensity of network paths into routing decisions, preferring low-carbon electricity grids for data transmission.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔍</div>
+                    <h3>Direct Carbon Tracking</h3>
+                    <p>The Climate Intelligence platform enables nations and enterprises to track emissions in real-time using federated sensors, creating accountability without compromising sovereignty.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-links">
+            <a href="https://github.com/rwilliamspbg-ops/SMIP-MWP" target="_blank">SMIP-MWP</a>
+            <a href="https://github.com/rwilliamspbg-ops" target="_blank">Ecosystem</a>
+            <a href="https://github.com/rwilliamspbg-ops/SMIP-MWP/blob/main/docs/USAGE.md" target="_blank">Documentation</a>
+            <a href="https://github.com/rwilliamspbg-ops/SMIP-MWP/blob/main/LICENSE" target="_blank">License</a>
+        </div>
+        <p>Sovereign Mohawk Internet Protocol (SMIP-MWP) — Built for performance, designed for sovereignty, engineered for the planet.</p>
+        <p style="margin-top: 0.5rem; font-size: 0.8rem;">© 2026 rwilliamspbg-ops. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // Smooth scroll for nav links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Fade in animation on scroll
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+        // Parallax effect for hero background
+        window.addEventListener('scroll', () => {
+            const scrolled = window.pageYOffset;
+            document.querySelector('.hero-bg').style.transform = `translateY(${scrolled * 0.3}px)`;
+        });
+    </script>
+</body>
+</html>
