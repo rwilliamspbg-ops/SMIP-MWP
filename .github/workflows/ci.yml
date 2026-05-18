@@ -58,6 +58,25 @@ jobs:
       - name: Run Benchmarks (crypto)
         run: ./scripts/bench.sh --pprof -- go test ./internal/crypto -bench=. -benchmem -run ^$ -count=1
 
+      - name: Install Graphviz (for pprof SVG)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+
+      - name: Build test binary for pprof
+        run: go test -c -o /tmp/crypto.test ./internal/crypto
+
+      - name: Generate SVG flamegraphs from CPU profiles
+        run: |
+          set -euo pipefail
+          for f in benchmarks/*cpu*.prof; do
+            [ -f "$f" ] || continue
+            base=$(basename "$f")
+            out="benchmarks/${base}.svg"
+            echo "Generating $out from $f"
+            /usr/local/go/bin/go tool pprof -svg /tmp/crypto.test "$f" > "$out" || true
+          done
+
       - name: Upload benchmark artifacts
         uses: actions/upload-artifact@v4
         with:
