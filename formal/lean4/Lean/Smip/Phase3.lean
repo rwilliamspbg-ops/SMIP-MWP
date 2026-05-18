@@ -442,8 +442,62 @@ theorem reach_dst_from_nodes_list {rt : RoutingTable} {dist : Distance}
     (closure_next : ∀ x next, x ∈ nodes → rt x d = some next → next ∈ nodes)
     (p : Packet) (hp : p.dst = d) (hloc : p.loc ∈ nodes) :
   ∃ k, k < nodes.length ∧ (forward_n rt k p).loc = d := by
-  -- deprecated: use `reach_dst_from_fin_nodes` instead
-  admit
+  -- Convert a membership proof `x ∈ xs` into a `Fin xs.length` index.
+  partial def list_index_of : (xs : List Node) → (x : Node) → x ∈ xs → Fin xs.length
+    | [], _, h => by simp at h; contradiction
+    | hd::tl, x, h =>
+      if heq : x = hd then
+        have : 0 < (hd::tl).length := by simp
+        ⟨0, this⟩
+      else
+        have xin : x ∈ tl := by simp [heq] at h; exact h
+        let fi := list_index_of tl x xin
+        have pf : fi.val + 1 < tl.length + 1 := by
+          have lt := fi.isLt
+          exact Nat.succ_lt_succ lt
+        ⟨fi.val + 1, pf⟩
+
+  -- Build a `Fin n → Node` mapping from the `nodes : List Node` by using
+  -- `List.get?` with a safe default (the default is never used when index is
+  -- valid because `i.val < nodes.length`).
+  let n := nodes.length
+  let nodes_fin : Fin n → Node := fun i => (nodes.get? i.val).getD 0
+
+  -- Lift the `dist_bound_on_nodes` and `total_on_nodes` hypotheses to the
+  -- `Fin`-indexed versions required by `reach_dst_from_fin_nodes`.
+  have dist_bound_fin : ∀ i : Fin n, dist (nodes_fin i) d < n := by
+    intro i
+    have : nodes_fin i ∈ nodes := by
+      -- when `i.val < nodes.length`, `nodes.get? i.val = some v` and that v ∈ nodes
+      simp [nodes_fin]; cases nodes.get? i.val <;> simp_all
+    have : nodes_fin i ∈ nodes := by simp [nodes_fin]; cases nodes.get? i.val <;> simp_all
+    have mem := this
+    have hval : dist (nodes_fin i) d < nodes.length := dist_bound_on_nodes _ mem
+    simp [n] at hval; exact hval
+
+  have total_on_nodes_fin : ∀ i : Fin n, nodes_fin i ≠ d → ∃ j : Fin n, rt (nodes_fin i) d = some (nodes_fin j) := by
+    intro i hne
+    have mem : nodes_fin i ∈ nodes := by simp [nodes_fin]; cases nodes.get? i.val <;> simp_all
+    obtain ⟨next, hnxt⟩ := total_on_nodes _ mem hne
+    have idx := list_index_of nodes next hnxt.left
+    use idx
+    simp [nodes_fin]
+    have : nodes_fin idx = next := by
+      simp [nodes_fin]; cases nodes.get? idx.val <;> simp_all; assumption
+    simp [this]; exact hnxt.right
+
+  -- Convert the packet location membership to a Fin index and call the Fin-based theorem.
+  have hloc_fin : ∃ i : Fin n, nodes_fin i = p.loc := by
+    obtain ⟨x, hx⟩ := hloc
+    let idx := list_index_of nodes x hx
+    use idx
+    simp [nodes_fin]
+    cases nodes.get? idx.val <;> simp_all
+
+  -- Now call the Fin-indexed theorem with `n` and `nodes_fin`.
+  exact reach_dst_from_fin_nodes wf d (n := n) nodes_fin
+    (fun i => by apply dist_bound_fin i)
+    (fun i => by apply total_on_nodes_fin i) p hp hloc_fin
 
 /- Fin-indexed version: nodes given by `nodes : Fin n → Node`. This avoids
    external dependencies while providing a concrete finite-node abstraction.
