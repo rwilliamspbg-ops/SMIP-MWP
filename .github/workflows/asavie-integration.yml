@@ -1,0 +1,36 @@
+name: Asavie XDP Integration (self-hosted)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-integration:
+    name: Run Asavie/XDP Integration
+    runs-on: [self-hosted, xdp-runner]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            $(go env GOPATH)/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Install deps
+        run: go mod download
+
+      - name: Run asavie integration script
+        env:
+          XDP_IFACE: ${{ inputs.iface }}
+          RUN_XDP_INTEGRATION: 1
+        run: |
+          chmod +x ./scripts/run_asavie_integration.sh
+          ./scripts/run_asavie_integration.sh
