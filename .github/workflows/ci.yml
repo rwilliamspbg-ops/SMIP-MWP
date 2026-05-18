@@ -34,5 +34,52 @@ jobs:
       - name: Run tests
         run: go test ./... -v
 
+      - name: Run tests (race)
+        run: go test -race ./... -v
+
       - name: Go vet
         run: go vet ./...
+
+  benchmarks:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Install Dependencies
+        run: go mod download
+
+      - name: Run Benchmarks (crypto)
+        run: ./scripts/bench.sh --pprof -- go test ./internal/crypto -bench=. -benchmem -run ^$ -count=1
+
+      - name: Install Graphviz (for pprof SVG)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+
+      - name: Build test binary for pprof
+        run: go test -c -o /tmp/crypto.test ./internal/crypto
+
+      - name: Generate SVG flamegraphs from CPU profiles
+        run: |
+          set -euo pipefail
+          for f in benchmarks/*cpu*.prof; do
+            [ -f "$f" ] || continue
+            base=$(basename "$f")
+            out="benchmarks/${base}.svg"
+            echo "Generating $out from $f"
+            /usr/local/go/bin/go tool pprof -svg /tmp/crypto.test "$f" > "$out" || true
+          done
+
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmarks
+          path: |
+            benchmarks/**

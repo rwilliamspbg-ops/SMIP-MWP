@@ -155,6 +155,7 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 						needed := wire.HeaderSize + len(ct)
 						if cap(*bufPtr) < needed {
 							// fall back to fresh allocation when pool buffer too small
+							wpool.Put(bufPtr)
 							newpkt = make([]byte, needed)
 						} else {
 							newpkt = (*bufPtr)[:needed]
@@ -172,7 +173,7 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 					if vh, err := wire.ViewHeader(newpkt); err == nil {
 						vh.SetLength(uint16(len(ct)))
 					}
-					out = append(out, newpkt)
+					out[i] = newpkt
 					continue
 				}
 				IncCryptoError()
@@ -184,11 +185,11 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 				logger.Printf("xdp send error: %v", err)
 			} else {
 				IncTx(len(out))
-				// return pooled buffers to pool to be reused
-				if wpool != nil && len(pooledPtrs) > 0 {
-					for _, p := range pooledPtrs {
-						wpool.Put(p)
-					}
+			}
+			// return pooled buffers to pool to be reused
+			if wpool != nil && len(pooledPtrs) > 0 {
+				for _, p := range pooledPtrs {
+					wpool.Put(p)
 				}
 			}
 		}

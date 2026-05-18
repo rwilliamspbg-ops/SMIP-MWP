@@ -52,7 +52,7 @@ func (f *Forwarder) Start(ctx context.Context) {
 			return
 		case <-ticker.C:
 			// Periodic status update
-			f.logger.Printf("stub tick: %v", f.running)
+			f.logger.Printf("stub tick: %v", f.isRunning())
 		}
 	}
 }

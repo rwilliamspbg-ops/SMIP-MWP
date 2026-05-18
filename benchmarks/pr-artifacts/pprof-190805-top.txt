@@ -1,0 +1,59 @@
+File: crypto.test
+Build ID: a4a4d7a405633ca0614f6e0457f8971dd3b19b44
+Type: cpu
+Time: 2026-05-18 19:08:06 UTC
+Duration: 74.85s, Total samples = 93.08s (124.35%)
+Showing nodes accounting for 83.99s, 90.23% of 93.08s total
+Dropped 339 nodes (cum <= 0.47s)
+Showing top 50 nodes out of 110
+      flat  flat%   sum%        cum   cum%
+    24.52s 26.34% 26.34%     24.52s 26.34%  crypto/internal/fips140/aes/gcm.gcmAesDec
+    21.28s 22.86% 49.20%     21.28s 22.86%  crypto/internal/fips140/aes/gcm.gcmAesEnc
+    13.84s 14.87% 64.07%     13.84s 14.87%  runtime.memmove
+     3.29s  3.53% 67.61%      3.29s  3.53%  runtime.futex
+     2.70s  2.90% 70.51%      2.70s  2.90%  crypto/internal/fips140/aes.encryptBlockAsm
+     2.14s  2.30% 72.81%      2.84s  3.05%  runtime.typePointers.next
+     1.98s  2.13% 74.94%      6.16s  6.62%  runtime.scanObject
+     1.92s  2.06% 77.00%      1.92s  2.06%  runtime.madvise
+     1.42s  1.53% 78.52%      1.42s  1.53%  runtime.typePointers.nextFast (inline)
+     1.25s  1.34% 79.87%      1.83s  1.97%  runtime.scanblock
+     1.06s  1.14% 81.01%      1.07s  1.15%  encoding/binary.bigEndian.Uint64 (inline)
+     0.99s  1.06% 82.07%      0.99s  1.06%  runtime.memclrNoHeapPointers
+     0.79s  0.85% 82.92%      0.79s  0.85%  runtime.procyieldAsm
+     0.58s  0.62% 83.54%      0.58s  0.62%  crypto/internal/fips140/aes/gcm.gcmAesFinish
+     0.58s  0.62% 84.16%      0.58s  0.62%  runtime.tgkill
+     0.54s  0.58% 84.74%      0.98s  1.05%  runtime.tryDeferToSpanScan
+     0.51s  0.55% 85.29%      0.51s  0.55%  runtime.osyield
+     0.32s  0.34% 85.64%      0.52s  0.56%  runtime.scanObjectsSmall
+     0.30s  0.32% 85.96%      1.81s  1.94%  runtime.(*sweepLocked).sweep
+     0.30s  0.32% 86.28%      2.86s  3.07%  runtime.sweepone
+     0.26s  0.28% 86.56%      2.96s  3.18%  crypto/internal/fips140/aes.encryptBlock
+     0.26s  0.28% 86.84%     23.37s 25.11%  crypto/internal/fips140/aes/gcm.seal
+     0.22s  0.24% 87.08%      4.76s  5.11%  runtime.mallocgcSmallNoscan
+     0.21s  0.23% 87.30%     27.09s 29.10%  crypto/internal/fips140/aes/gcm.(*GCM).Open
+     0.19s   0.2% 87.51%     26.79s 28.78%  crypto/internal/fips140/aes/gcm.open
+     0.18s  0.19% 87.70%      1.20s  1.29%  runtime.lock2
+     0.16s  0.17% 87.87%     23.80s 25.57%  crypto/internal/fips140/aes/gcm.(*GCM).Seal
+     0.16s  0.17% 88.04%     37.60s 40.40%  smip-mwp/internal/crypto.BenchmarkDecryptInPlace
+     0.15s  0.16% 88.20%     23.59s 25.34%  crypto/internal/fips140/aes/gcm.(*GCM).sealAfterIndicator
+     0.15s  0.16% 88.36%      0.56s   0.6%  runtime.(*spanSet).pop
+     0.15s  0.16% 88.53%         9s  9.67%  runtime.gcDrain
+     0.14s  0.15% 88.68%      1.21s  1.30%  runtime.(*mheap).allocSpan
+     0.14s  0.15% 88.83%     24.54s 26.36%  smip-mwp/internal/crypto.(*HybridSession).EncryptInPlace
+     0.13s  0.14% 88.97%      0.47s   0.5%  runtime.(*pageAlloc).update
+     0.12s  0.13% 89.10%      0.77s  0.83%  runtime.(*mheap).initSpan
+     0.11s  0.12% 89.21%      2.24s  2.41%  runtime.(*mcache).refill
+     0.11s  0.12% 89.33%      6.48s  6.96%  runtime.mallocgc
+     0.11s  0.12% 89.45%      1.22s  1.31%  smip-mwp/internal/crypto.(*HybridSession).buildNonce (inline)
+     0.10s  0.11% 89.56%     27.83s 29.90%  smip-mwp/internal/crypto.(*HybridSession).DecryptInPlace
+     0.09s 0.097% 89.65%      2.43s  2.61%  runtime.findRunnable
+     0.08s 0.086% 89.74%      0.87s  0.93%  runtime.(*mheap).freeSpanLocked
+     0.07s 0.075% 89.82%      0.62s  0.67%  runtime.(*mheap).nextSpanForSweep
+     0.06s 0.064% 89.88%      6.47s  6.95%  runtime.makeslice
+     0.06s 0.064% 89.94%     17.32s 18.61%  runtime.systemstack
+     0.06s 0.064% 90.01%     35.33s 37.96%  smip-mwp/internal/crypto.BenchmarkEncryptInPlace
+     0.05s 0.054% 90.06%      3.02s  3.24%  runtime.bgsweep
+     0.04s 0.043% 90.11%      2.31s  2.48%  runtime.(*mcache).nextFree
+     0.04s 0.043% 90.15%      1.29s  1.39%  runtime.(*mheap).alloc
+     0.04s 0.043% 90.19%      1.61s  1.73%  runtime.deductAssistCredit
+     0.04s 0.043% 90.23%      2.96s  3.18%  runtime.markroot

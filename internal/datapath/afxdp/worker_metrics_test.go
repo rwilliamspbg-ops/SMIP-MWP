@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"sync"
 	"testing"
-	"time"
 
 	"smip-mwp/internal/wire"
 
@@ -39,6 +38,14 @@ func TestPerWorkerMetrics(t *testing.T) {
 		sockets[i].frames <- buf
 	}
 
+	// Flush any existing values and record a stable baseline before the test work starts.
+	flushWorkerCounters()
+	baseline := make([]float64, numWorkers)
+	for i := 0; i < numWorkers; i++ {
+		label := fmt.Sprint(i)
+		baseline[i] = testutil.ToFloat64(rxPacketsVec.WithLabelValues(label))
+	}
+
 	// Worker function will Poll the corresponding socket once and increment
 	// per-worker metrics using IncRxWorker.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -56,15 +63,15 @@ func TestPerWorkerMetrics(t *testing.T) {
 	// Wait for workers to finish (they'll exit after one run)
 	wg.Wait()
 
-	// Allow metric propagation
-	time.Sleep(10 * time.Millisecond)
+	// Flush atomic worker counters into the Prometheus vectors before checking.
+	flushWorkerCounters()
 
 	// Assert metrics per worker
 	for i := 0; i < numWorkers; i++ {
 		label := fmt.Sprint(i)
 		got := testutil.ToFloat64(rxPacketsVec.WithLabelValues(label))
-		if int(got) != 1 {
-			t.Fatalf("worker %d: expected rx 1, got %v", i, got)
+		if int(got-baseline[i]) != 1 {
+			t.Fatalf("worker %d: expected rx delta 1, got base=%v got=%v", i, baseline[i], got)
 		}
 	}
 }

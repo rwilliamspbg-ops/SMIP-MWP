@@ -208,6 +208,10 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 			if sess != nil && sess.CryptoState != nil {
 				payloadLen := int(hdr.Length())
 				if payloadLen >= crypto.TagSize {
+					if wire.HeaderSize+payloadLen > len(frame) {
+						IncDroppedWorker(workerID, 1)
+						continue
+					}
 					// In-place decryption on UMEM frame (zero-copy hot path)
 					payload := frame[wire.HeaderSize : wire.HeaderSize+payloadLen]
 					if _, err := sess.CryptoState.DecryptInPlace(payload, hdr.SeqNum()); err == nil {
