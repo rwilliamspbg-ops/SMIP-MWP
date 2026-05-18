@@ -128,6 +128,33 @@ theorem dist_decreases_on_forward {rt : RoutingTable} {dist : Distance}
   cases rt p.loc p.dst <;> simp at *
   exact wf p.loc p.dst _ rfl
 
+/- The destination field is preserved by forwarding steps and by repeated
+   forwarding. -/
+theorem dst_preserved_by_forward_step (rt : RoutingTable) (p : Packet) :
+  (forward_step rt p).dst = p.dst := by
+  simp [forward_step]
+
+theorem dst_preserved_by_forward_n (rt : RoutingTable) :
+  ∀ n p, (forward_n rt n p).dst = p.dst := by
+  intro n
+  induction n with
+  | zero => intro p; simp [forward_n]
+  | succ k ih =>
+    intro p
+    simp [forward_n]
+    apply ih
+
+/- Distance decreases for each concrete forwarding step when a next-hop
+   exists; extend to repeated steps showing a strict chain of decreases. -/
+theorem forward_step_decreases_dist {rt : RoutingTable} {dist : Distance}
+    (wf : routing_wf rt dist) (p : Packet) :
+  match rt p.loc p.dst with
+  | none => True
+  | some next => dist (forward_step rt p).loc p.dst < dist p.loc p.dst := by
+  cases rt p.loc p.dst <;> simp at *
+  -- when `some next` the forward_step loc becomes `next`
+  exact wf p.loc p.dst _ rfl
+
 /- If `rt` is well-formed, then starting from any packet `p`, after at most
    `dist p.loc p.dst` forwarding steps you will reach a node where the routing
    table does not provide a next-hop (or you are at the destination). This
