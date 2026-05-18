@@ -41,15 +41,19 @@ func NewHybridKEX(rng io.Reader) (*HybridKeyExchange, error) {
 	if _, err := io.ReadFull(rng, h.x25519Priv[:]); err != nil {
 		return nil, fmt.Errorf("kex: x25519 key gen: %w", err)
 	}
-	curve25519.ScalarBaseMult(&h.x25519Pub, &h.x25519Priv)
+	pub, err := curve25519.X25519(h.x25519Priv[:], curve25519.Basepoint)
+	if err != nil {
+		return nil, fmt.Errorf("kex: x25519 key gen (X25519): %w", err)
+	}
+	copy(h.x25519Pub[:], pub)
 
 	// ML-KEM-768: Generate real keypair using crypto/mlkem
 	if _, err := io.ReadFull(rng, h.mlkemSeed[:]); err != nil {
 		return nil, fmt.Errorf("kex: mlkem seed gen: %w", err)
 	}
 	var key *mlkem.DecapsulationKey768
-	
-	key, err := mlkem.GenerateKey768()
+
+	key, err = mlkem.GenerateKey768()
 	if err != nil {
 		return nil, fmt.Errorf("kex: mlkem key gen: %w", err)
 	}
@@ -85,14 +89,18 @@ func (h *HybridKeyExchange) Handshake(peerPub []byte) ([]byte, error) {
 	var peerX25519 [32]byte
 	copy(peerX25519[:], peerPub[:32])
 	var x25519SS [32]byte
-	curve25519.ScalarMult(&x25519SS, &h.x25519Priv, &peerX25519)
+	ss, err := curve25519.X25519(h.x25519Priv[:], peerX25519[:])
+	if err != nil {
+		return nil, fmt.Errorf("kex: x25519 scalar mult (X25519): %w", err)
+	}
+	copy(x25519SS[:], ss)
 
 	// --- PQC: ML-KEM-768 deterministic shared secret ---
 	// For now, derive a deterministic shared secret from the hybrid of our seed and peer's public key.
 	// This ensures both sides derive the same value despite ML-KEM's asymmetric API.
 	// Future version: use encapsulation/decapsulation for full post-quantum security.
 	peerMLBytes := peerPub[32 : 32+1184]
-	
+
 	// Hash(our seed || peer's pk) to get a deterministic shared secret
 	h256 := sha256.New()
 	h256.Write(h.mlkemSeed[:])

@@ -71,8 +71,9 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 
 		out := make([][]byte, 0, len(frames))
 		// track which out entries were allocated from the pktPool so we can
-		// return them after a successful send.
-		pooledIdxs := make([]int, 0, len(frames))
+		// return them after a successful send. We store pointers to pooled
+		// buffers (type *[]byte) to avoid passing pointer-like values by value.
+		pooledPtrs := make([]*[]byte, 0, len(frames))
 		// Acquire read lock once per batch to reduce per-packet RLock overhead.
 		f.mu.RLock()
 		for _, buf := range frames {
@@ -133,18 +134,18 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 					// construct new packet: header + ct using pooled buffer when available
 					var newpkt []byte
 					if f.pktPool != nil {
-						buf := f.pktPool.Get().([]byte)
+						bufPtr := f.pktPool.Get().(*[]byte)
 						needed := wire.HeaderSize + len(ct)
-						if cap(buf) < needed {
+						if cap(*bufPtr) < needed {
 							// fall back to fresh allocation when pool buffer too small
 							newpkt = make([]byte, needed)
 						} else {
-							newpkt = buf[:needed]
+							newpkt = (*bufPtr)[:needed]
+							// mark this pool pointer for later return
+							pooledPtrs = append(pooledPtrs, bufPtr)
 						}
 						copy(newpkt, out[i][:wire.HeaderSize])
 						copy(newpkt[wire.HeaderSize:], ct)
-						// mark to return to pool after successful send
-						pooledIdxs = append(pooledIdxs, len(out))
 					} else {
 						newpkt = make([]byte, wire.HeaderSize+len(ct))
 						copy(newpkt, out[i][:wire.HeaderSize])
@@ -167,11 +168,9 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 			} else {
 				IncTx(len(out))
 				// return pooled buffers to pool to be reused
-				if f.pktPool != nil && len(pooledIdxs) > 0 {
-					for _, idx := range pooledIdxs {
-						if idx < len(out) {
-							f.pktPool.Put(out[idx])
-						}
+				if f.pktPool != nil && len(pooledPtrs) > 0 {
+					for _, p := range pooledPtrs {
+						f.pktPool.Put(p)
 					}
 				}
 			}

@@ -55,10 +55,18 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 		default:
 		}
 
-		// Refill UMEM fill ring with free descriptors (minimize stalls)
+		// Refill UMEM fill ring with free descriptors (minimize stalls).
+		// Use FillThreshold from config when set to avoid over-filling.
 		free := xsk.NumFreeFillSlots()
 		if free > 0 {
-			descs := xsk.GetDescs(free)
+			desired := f.cfg.FillThreshold
+			if desired <= 0 {
+				desired = batchSize
+			}
+			if desired > free {
+				desired = free
+			}
+			descs := xsk.GetDescs(desired)
 			if len(descs) > 0 {
 				xsk.Fill(descs)
 			}

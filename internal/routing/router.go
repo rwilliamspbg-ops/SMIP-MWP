@@ -163,16 +163,6 @@ func (r *Router) LookupPolicy(srcID [32]byte, dstID [32]byte, flowLabel uint32) 
 	return RoutePolicy{}, fmt.Errorf("no policy available")
 }
 
-// isPredictiveLookupNeeded simulates intelligence checking (e.g., checking threat scores, path history).
-func (r *Router) isPredictiveLookupNeeded(srcID [32]byte, dstID [32]byte, flowLabel uint32) bool {
-	// Simple heuristic for demo: If the destination ID contains 'h', treat it as high risk/needs inspection.
-	// Real implementation uses complex ML models or graph algorithms.
-	if dstID[10] == 'h' && dstID[11] == 'i' {
-		return true
-	}
-	return false
-}
-
 // UpdatePolicy allows external agents (like the consensus plane) to dynamically update the table.
 func (r *Router) UpdatePolicy(srcID [32]byte, dstID [32]byte, flowLabel uint32, nextHopID [32]byte, queueID int) {
 	key := r.computeFlowKey(srcID, dstID, flowLabel)

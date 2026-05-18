@@ -19,6 +19,9 @@ type Config struct {
 	FrameSize  int
 	BatchSize  int
 	NumWorkers int // number of per-CPU workers / queues to spawn (0 -> NumCPU)
+	// FillThreshold controls how many descriptors we attempt to keep
+	// available on the UMEM Fill ring. If zero, defaults to BatchSize.
+	FillThreshold int
 }
 
 // Session represents a lightweight session placeholder.

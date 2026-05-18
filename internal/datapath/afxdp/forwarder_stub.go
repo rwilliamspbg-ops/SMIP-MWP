@@ -23,7 +23,7 @@ func NewForwarder(cfg Config, routeTable *routing.Table) (*Forwarder, error) {
 	if size <= 0 {
 		size = 2048
 	}
-	f.pktPool = &sync.Pool{New: func() interface{} { return make([]byte, size) }}
+	f.pktPool = &sync.Pool{New: func() interface{} { b := make([]byte, size); return &b }}
 	f.logger.Printf("stub forwarder created iface=%s", cfg.Interface)
 	return f, nil
 }
