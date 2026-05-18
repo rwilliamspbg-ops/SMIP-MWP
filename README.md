@@ -30,11 +30,18 @@ SMIP-MWP is a high-performance sovereign transport and routing stack focused on:
 
 ## Performance (summary)
 
-This repository includes an iterative, profile-driven optimization workflow. Representative artifacts and full pprof captures live under [benchmarks/](benchmarks/). Key measured results from the most recent development runs (local CI / bench harness) follow — use these as a canonical baseline for upcoming hardware runs.
+This repository includes a profile-driven optimization workflow. Full artifacts and pprof captures live under [benchmarks/](benchmarks/). Below are measured results from the most recent development runs (local bench harness, 60s runs):
 
-- Final canonical synthetic benchmark (30s, dev host): **1611 ns/op** (~620k packets/sec), `benchmarks/final-canonical-cpu.prof`
-- Best local measured result during tuning: **1487 ns/op** (~672k pps) (config: `CRYPTO_WORKERS=1`, `CRYPTO_BATCH_SIZE=4`, pre-warmed sessions)
-- Memory: ~312 B/op, 6 allocs/op (hot-path stable)
+- AF_XDP datapath (crypto path, 60s): **2014 ns/op**, 560 B/op, 9 allocs/op (`benchmarks/afxdp-bench-single-60s.txt`).
+- AF_XDP datapath (4 workers, crypto path, 60s): **2376 ns/op**, 632 B/op, 11 allocs/op (`benchmarks/afxdp-bench-multi-60s.txt`).
+
+Crypto microbench highlights (60s runs):
+- `BenchmarkNewHybridSession_Cached`: **545.0 ns/op**, 1392 B/op, 4 allocs/op
+- `BenchmarkNewHybridSession_Uncached`: **610.4 ns/op**, 1392 B/op, 4 allocs/op
+- `BenchmarkEncryptInPlace`: **833.1 ns/op**, 1552 B/op, 2 allocs/op
+- `BenchmarkDecryptInPlace`: terminated mid-run (recommend re-run with pprof)
+
+These numbers reflect development harness runs — bare-metal validation with MoonGen/TRex is required for final line-rate claims. See `benchmarks/` for raw outputs and `benchmarks/pprof/run_pprof_bench.sh` to capture pprof CPU/memory profiles.
 
 Recommended canonical configuration for hardware validation:
 

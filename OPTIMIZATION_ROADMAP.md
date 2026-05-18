@@ -1,5 +1,10 @@
 # Phase 2 Optimization Guide: Path to 10 Gbps
 
+## Changelog
+
+- 2026-05-18: Tier-1 optimizations implemented and merged (PR #15): sharded session map, per-worker session cache, pre-allocated descriptors, per-worker pkt pools. Development harness measured: AF_XDP single-worker (crypto) 2014 ns/op; 4-worker crypto 2376 ns/op. See `CHANGELOG.md` and `benchmarks/` for artifacts.
+
+
 **Target**: 10 Gbps sustained throughput  
 **Current**: 7.06 Gbps per core (4 cores = 28.2 Gbps theoretical)  
 **Gap**: 29% improvement needed  
