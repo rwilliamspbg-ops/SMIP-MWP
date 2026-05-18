@@ -46,6 +46,15 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 	ticker := time.NewTicker(batchInterval)
 	defer ticker.Stop()
 
+	// EMA of completed descriptors per tick used when adaptive fill enabled.
+	var emaCompleted float64
+	alpha := 0.25 // default alpha; may be overridden by config below
+
+	// Apply config defaults if not set
+	if f.cfg.FillEMAAlpha > 0 {
+		alpha = f.cfg.FillEMAAlpha
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -56,12 +65,33 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 		}
 
 		// Refill UMEM fill ring with free descriptors (minimize stalls).
-		// Use FillThreshold from config when set to avoid over-filling.
+		// If adaptive fill is enabled, compute desired based on EMA of completed descriptors.
 		free := xsk.NumFreeFillSlots()
 		if free > 0 {
-			desired := f.cfg.FillThreshold
-			if desired <= 0 {
-				desired = batchSize
+			var desired int
+			if f.cfg.FillAdaptive {
+				// target = max(batchSize, int(ema*factor))
+				factor := f.cfg.FillAdaptFactor
+				if factor <= 0 {
+					factor = 1.5
+				}
+				target := int(emaCompleted * factor)
+				if target < batchSize {
+					target = batchSize
+				}
+				// clamp to configured min/max when provided
+				if f.cfg.FillMin > 0 && target < f.cfg.FillMin {
+					target = f.cfg.FillMin
+				}
+				if f.cfg.FillMax > 0 && target > f.cfg.FillMax {
+					target = f.cfg.FillMax
+				}
+				desired = target
+			} else {
+				desired = f.cfg.FillThreshold
+				if desired <= 0 {
+					desired = batchSize
+				}
 			}
 			if desired > free {
 				desired = free
@@ -84,6 +114,11 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 		if numCompleted > 0 {
 			xsk.Complete(numCompleted)
 			IncTxWorker(workerID, numCompleted)
+		}
+
+		// Update EMA with recent completions for adaptive fill control
+		if f.cfg.FillAdaptive {
+			emaCompleted = alpha*float64(numCompleted) + (1.0-alpha)*emaCompleted
 		}
 
 		if numRx == 0 {

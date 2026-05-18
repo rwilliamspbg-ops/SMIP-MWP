@@ -42,6 +42,10 @@ Implementation checklist
 
   - `BatchSize`: number of packets processed per tick/iteration; larger values increase throughput but add latency.
   - `FillThreshold`: target number of descriptor slots to refill into UMEM; setting this to match `BatchSize` is a good starting point.
+   - `FillThreshold`: target number of descriptor slots to refill into UMEM; setting this to match `BatchSize` is a good starting point.
+   - `FillAdaptive`: enable dynamic fill adjustment based on observed completion rate.
+   - `FillAdaptFactor`: multiplicative factor applied to observed completions to compute target refill (default 1.5).
+   - `FillEMAAlpha`: EMA alpha for smoothing observed completion rate (0..1). Default is 0.25.
   - `FrameSize`: set to match your MTU plus headroom (2048 is a reasonable default).
 
   Start with:
