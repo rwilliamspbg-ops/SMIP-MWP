@@ -113,4 +113,4 @@ Detailed prerequisites and runbooks are referenced from [IMPLEMENTATION_PLAN.md]
 
 ## License
 
-This project is MIT licensed. See [LICENSE](LICENSE).
+This project is licensed. See [LICENSE](LICENSE).
