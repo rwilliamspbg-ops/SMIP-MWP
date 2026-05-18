@@ -24,7 +24,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"runtime"
+	"strconv"
 	"sync"
 
 	"golang.org/x/crypto/chacha20poly1305"
@@ -55,9 +57,57 @@ var (
 // hkdfCache stores derived session key material to avoid repeated HKDF work
 // for the same combinedSecret+sessionInfo input. It is bounded so repeated
 // session churn cannot grow memory without limit.
-// hkdfCache is a sharded LRU cache to reduce mutex contention on lookups/writes
-// under multi-core workloads. Each shard is a separate LRU with its own mutex.
-var hkdfCache = newShardedLRU(runtime.NumCPU(), MaxHKDFCacheSize)
+// hkdfCache is a cache providing a read-optimized fast path backed by a
+// sharded LRU to bound memory use. The shard count can be configured with
+// the `HKDF_CACHE_SHARDS` environment variable for benchmarking/tuning.
+var hkdfCache = newHKDFCache(runtime.NumCPU(), MaxHKDFCacheSize)
+
+type hkdfCacheType struct {
+	inner *shardedLRU
+	fast  sync.Map // map[[32]byte]hkdfCacheEntry - read-optimized fast path
+}
+
+func newHKDFCache(requestedShards int, totalMax int) *hkdfCacheType {
+	return &hkdfCacheType{inner: newShardedLRU(requestedShards, totalMax)}
+}
+
+func (h *hkdfCacheType) Get(key [32]byte) (hkdfCacheEntry, bool) {
+	if h == nil {
+		return hkdfCacheEntry{}, false
+	}
+	if v, ok := h.fast.Load(key); ok {
+		return v.(hkdfCacheEntry), true
+	}
+	if e, ok := h.inner.Get(key); ok {
+		h.fast.Store(key, e)
+		return e, true
+	}
+	return hkdfCacheEntry{}, false
+}
+
+func (h *hkdfCacheType) Put(key [32]byte, val hkdfCacheEntry) {
+	if h == nil {
+		return
+	}
+	h.inner.Put(key, val)
+	h.fast.Store(key, val)
+}
+
+func (h *hkdfCacheType) Len() int {
+	if h == nil {
+		return 0
+	}
+	return h.inner.Len()
+}
+
+func init() {
+	// Allow tuning shard count via env var for benchmarking.
+	if v := os.Getenv("HKDF_CACHE_SHARDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			hkdfCache = newHKDFCache(n, MaxHKDFCacheSize)
+		}
+	}
+}
 
 // shardedLRU provides a simple sharded wrapper around the existing lruCache
 // implementation. The shard count is rounded up to the next power-of-two so
