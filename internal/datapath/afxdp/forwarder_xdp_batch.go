@@ -55,6 +55,12 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 		alpha = f.cfg.FillEMAAlpha
 	}
 
+	// Pre-allocate descriptor buffer to avoid per-poll allocations.
+	descBuf := make([]*XDPDescriptor, 0, batchSize)
+
+	// worker-local session cache
+	var wcache workerSessionCache
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -129,8 +135,14 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 			continue
 		}
 
-		// Receive descriptors and process frames in-place (zero-copy hot path)
-		descs := xsk.Receive(numRx)
+		// Receive descriptors and reuse pre-allocated buffer to avoid allocations
+		descBuf = descBuf[:0]
+		tmp := xsk.Receive(numRx)
+		if len(tmp) == 0 {
+			continue
+		}
+		descBuf = append(descBuf, tmp...)
+		descs := descBuf
 		IncRxWorker(workerID, len(descs))
 		start := time.Now()
 
@@ -158,9 +170,14 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 			var sid [16]byte
 			copy(sid[:], sessionID)
 
-			f.mu.RLock()
-			sess := f.sessions[sid]
-			f.mu.RUnlock()
+			// fast path: check worker-local cache
+			sess := wcache.Get(sid)
+			if sess == nil {
+				sess = f.GetSession(sid)
+				if sess != nil {
+					wcache.Put(sid, sess)
+				}
+			}
 
 			if sess != nil && sess.CryptoState != nil {
 				payloadLen := int(hdr.Length())

@@ -48,6 +48,8 @@ See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for interpretation, pprof usage, 
 
 Quick start, runtime flags, and host prerequisites are consolidated in [docs/USAGE.md](docs/USAGE.md). Key quick commands:
 
+For a minimal quick-start for new contributors, see [docs/QUICK_START.md](docs/QUICK_START.md).
+
 Run tests and vet:
 
 ```bash

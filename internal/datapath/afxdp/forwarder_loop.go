@@ -46,6 +46,11 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 
 	pollBatch := 64
 
+	// per-goroutine worker-local session cache to avoid hot map lookups
+	var wcache workerSessionCache
+	// per-goroutine packet pool to avoid sync.Pool on hot path
+	wpool := newWorkerPktPool(f.cfg.FrameSize, 0)
+
 	for {
 		// Fast check for cancellation without using `select` inside the hot loop.
 		if ctx.Err() != nil {
@@ -74,8 +79,6 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 		// return them after a successful send. We store pointers to pooled
 		// buffers (type *[]byte) to avoid passing pointer-like values by value.
 		pooledPtrs := make([]*[]byte, 0, len(frames))
-		// Acquire read lock once per batch to reduce per-packet RLock overhead.
-		f.mu.RLock()
 		for _, buf := range frames {
 			// Parse and select next-hop/queue
 			nh, q, err := PrepareForPacket(buf, f.routeTable)
@@ -90,7 +93,6 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 			// and potentially encrypt). Tests only assert that Send is called.
 			out = append(out, buf)
 		}
-		f.mu.RUnlock()
 
 		// Attempt in-place encryption for packets that have a registered session
 		for i, pkt := range out {
@@ -99,10 +101,16 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 			if err != nil {
 				continue
 			}
-			// perform session lookup under read lock briefly (avoid locking per-packet)
-			f.mu.RLock()
-			sess := f.sessions[h.SessionID]
-			f.mu.RUnlock()
+			// perform session lookup via worker-local cache then sharded map
+			var sid [16]byte
+			copy(sid[:], h.SessionID[:])
+			sess := wcache.Get(sid)
+			if sess == nil {
+				sess = f.GetSession(sid)
+				if sess != nil {
+					wcache.Put(sid, sess)
+				}
+			}
 			if sess != nil && sess.CryptoState != nil {
 				payloadLen := int(h.Length)
 				if payloadLen == 0 {
@@ -133,8 +141,8 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 				if err == nil {
 					// construct new packet: header + ct using pooled buffer when available
 					var newpkt []byte
-					if f.pktPool != nil {
-						bufPtr := f.pktPool.Get().(*[]byte)
+					if wpool != nil {
+						bufPtr := wpool.Get()
 						needed := wire.HeaderSize + len(ct)
 						if cap(*bufPtr) < needed {
 							// fall back to fresh allocation when pool buffer too small
@@ -168,9 +176,9 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 			} else {
 				IncTx(len(out))
 				// return pooled buffers to pool to be reused
-				if f.pktPool != nil && len(pooledPtrs) > 0 {
+				if wpool != nil && len(pooledPtrs) > 0 {
 					for _, p := range pooledPtrs {
-						f.pktPool.Put(p)
+						wpool.Put(p)
 					}
 				}
 			}

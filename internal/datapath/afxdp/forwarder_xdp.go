@@ -29,13 +29,15 @@ func NewForwarder(cfg Config, routeTable *routing.Table) (*Forwarder, error) {
 	// scaffold minimal and safe for CI/dev environments.
 
 	l := log.New(os.Stdout, "afxdp:xdp: ", log.LstdFlags)
-	f := &Forwarder{cfg: cfg, logger: l, routeTable: routeTable, sessions: make(map[[16]byte]*Session)}
+	f := &Forwarder{cfg: cfg, logger: l, routeTable: routeTable}
 	// initialize packet pool sized to frame size
 	size := cfg.FrameSize
 	if size <= 0 {
 		size = 2048
 	}
 	f.pktPool = &sync.Pool{New: func() interface{} { b := make([]byte, size); return &b }}
+	// initialize sharded session maps
+	f.initSessionShards()
 	f.logger.Printf("afxdp: xdp-mode forwarder initialized iface=%s zeroCopy=%v", cfg.Interface, cfg.ZeroCopy)
 
 	// Initialize UMEM
@@ -70,6 +72,14 @@ func (f *Forwarder) Start(ctx context.Context) {
 	num := f.cfg.NumWorkers
 	if num <= 0 {
 		num = runtime.NumCPU()
+	}
+
+	// initialize per-worker pkt pools to reduce global sync.Pool usage
+	if f.workerPools == nil {
+		f.workerPools = make([]*workerPktPool, num)
+		for i := 0; i < num; i++ {
+			f.workerPools[i] = newWorkerPktPool(f.cfg.FrameSize, 32)
+		}
 	}
 
 	// create worker context and store cancel so Stop() can cancel all
