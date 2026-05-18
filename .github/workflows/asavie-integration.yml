@@ -44,6 +44,14 @@ jobs:
           chmod +x ./scripts/run_asavie_integration.sh
           ./scripts/run_asavie_integration.sh
 
+      - name: Install graphviz & generate flamegraphs
+        if: ${{ inputs.run_bench == 'true' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+          chmod +x ./scripts/process_benchmarks.sh
+          ./scripts/process_benchmarks.sh
+
       - name: Upload artifacts (benchmarks)
         if: always()
         uses: actions/upload-artifact@v4
