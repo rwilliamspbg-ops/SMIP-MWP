@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 
 	"smip-mwp/internal/crypto"
 	"smip-mwp/internal/routing"
@@ -58,7 +59,7 @@ type Forwarder struct {
 	cfg        Config
 	logger     *log.Logger
 	routeTable *routing.Table
-	running    bool
+	running    atomic.Bool
 
 	// Sharded session map to reduce global RWMutex contention. Use a fixed
 	// number of shards (power-of-two recommended) and hash the first 8
@@ -109,9 +110,9 @@ func (f *Forwarder) GetSession(sid [16]byte) *Session {
 // For AF_XDP mode (withafxdp), spawns multi-queue workers.
 // For stub mode, runs a simple polling loop.
 func (f *Forwarder) Run(ctx context.Context) {
-	f.running = true
+	f.setRunning(true)
 	defer func() {
-		f.running = false
+		f.setRunning(false)
 		f.logger.Println("forwarder stopped")
 	}()
 
@@ -125,9 +126,9 @@ func (f *Forwarder) Run(ctx context.Context) {
 
 // Close shuts down the forwarder.
 func (f *Forwarder) Close() error {
-	if f.running {
+	if f.isRunning() {
 		// Best-effort stop
-		f.running = false
+		f.setRunning(false)
 		f.logger.Println("closed")
 	}
 	// stop workers if running
@@ -150,6 +151,14 @@ func (f *Forwarder) GetStats() (rx, tx, dropped uint64) {
 
 // Helper for demonstration
 func (f *Forwarder) String() string { return fmt.Sprintf("afxdp.Forwarder(iface=%s)", f.cfg.Interface) }
+
+func (f *Forwarder) isRunning() bool {
+	return f.running.Load()
+}
+
+func (f *Forwarder) setRunning(v bool) {
+	f.running.Store(v)
+}
 
 // AddSession registers a session for a given session ID and records a handshake metric.
 func (f *Forwarder) AddSession(sid [16]byte, s *Session) {
