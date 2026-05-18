@@ -329,6 +329,50 @@ partial def build_fmap_for_dest (nodes : List Node) (neighbors : Neighbors)
     match pick_next? (neighbors h) h d dist with
     | none => build_fmap_for_dest t neighbors dist d
     | some nxt => (h, nxt) :: build_fmap_for_dest t neighbors dist d
+    
+/-! Properties of the list-based fmap builder. -/
+
+/-- Every key inserted by `build_fmap_for_dest` is a member of the input `nodes`. -/
+theorem build_fmap_for_dest_keys_subset_nodes (nodes : List Node) (neighbors : Neighbors)
+    (dist : Distance) (d : Node) :
+  ∀ x, x ∈ (build_fmap_for_dest nodes neighbors dist d).map Prod.fst → x ∈ nodes := by
+  induction nodes with
+  | nil => intros x hx; simp [build_fmap_for_dest] at hx; contradiction
+  | cons hd tl ih =>
+    intros x hx
+    simp [build_fmap_for_dest] at hx
+    by_cases c : pick_next? (neighbors hd) hd d dist
+    · simp [c] at hx
+      cases hx with
+      | head => simp [head]; exact Or.inl rfl
+      | tail => apply ih; exact tail
+    · simp [c] at hx; apply ih; exact hx
+
+/-- If the input `nodes` list has no duplicates then the built fmap has no
+    duplicate keys. -/
+theorem build_fmap_for_dest_keys_nodup {nodes : List Node} (nd : nodes.Nodup)
+    (neighbors : Neighbors) (dist : Distance) (d : Node) :
+  (build_fmap_for_dest nodes neighbors dist d).map Prod.fst).Nodup := by
+  induction nodes generalizing nd with
+  | nil => simp [build_fmap_for_dest]; exact List.Nodup.nil
+  | cons hd tl ih =>
+    cases nd with
+    | cons nd_hd nd_tl =>
+      simp [build_fmap_for_dest]
+      by_cases c : pick_next? (neighbors hd) hd d dist
+      · simp [c]
+        have rest_nodup := ih nd_tl
+        -- ensure `hd` is not in the rest of the keys
+        have notin : hd ∉ (build_fmap_for_dest tl neighbors dist d).map Prod.fst := by
+          intro contra
+          have := build_fmap_for_dest_keys_subset_nodes tl neighbors dist d hd contra
+          simp at this
+          -- `hd ∉ tl` from `nd_hd` (NoDup cons means hd ∉ tl)
+          have : hd ∉ tl := by exact nd_hd
+          contradiction
+        apply List.Nodup.cons notin rest_nodup
+      · simp [c]
+        apply ih nd_tl
 
 /-- The finite-map lookup agrees with `build_rt` for nodes contained in
     the provided `nodes` list (i.e., for the finite domain we built). -/
