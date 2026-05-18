@@ -111,7 +111,11 @@ func NewXDPSocket(iface string, queue int, umem *UMEM) (*XDPSocket, error) {
 
 	xsk, err := xdpPkg.NewSocket(link.Attrs().Index, queue, opts)
 	if err != nil {
-		return nil, fmt.Errorf("xdp.NewSocket failed: %w", err)
+		hint := "" +
+			"possible causes: install libbpf-dev and bpftool, ensure kernel and NIC driver support AF_XDP sockets, " +
+			"and verify UMEM parameters (frame size / num frames).\n" +
+			"Run: 'sudo apt install libbpf-dev bpftool ethtool', then 'ethtool -i " + iface + "', 'sudo bpftool net', and 'dmesg | tail -n 50' to gather kernel messages."
+		return nil, fmt.Errorf("xdp.NewSocket failed: %w\nHint: %s", err, hint)
 	}
 
 	backend := &realSocketImpl{xsk: xsk, frameSize: optsOrDefaultFrameSize(opts)}

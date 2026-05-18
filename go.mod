@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/asavie/xdp v0.3.3
 	github.com/prometheus/client_golang v1.16.0
+	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/crypto v0.51.0
 )
 
@@ -18,7 +19,7 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
-	github.com/vishvananda/netlink v1.1.0 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df // indirect
 	golang.org/x/sys v0.44.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
