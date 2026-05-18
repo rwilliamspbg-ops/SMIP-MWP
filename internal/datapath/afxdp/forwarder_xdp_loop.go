@@ -8,9 +8,8 @@ import (
 	"fmt"
 )
 
-// StartXDPForwarder initializes UMEM and socket resources and runs the core
-// XDP loop. This function is only compiled when `withafxdp` is enabled and
-// shows how production code will wire real resources to the testable loop.
+// StartXDPForwarder initializes and runs AF_XDP single-worker forwarder.
+// For multi-worker setup, use Start() which spawns workers via SpawnPerCPUWorkers.
 func (f *Forwarder) StartXDPForwarder(ctx context.Context) error {
 	umem, err := NewUMEM(f.cfg.NumFrames, f.cfg.FrameSize)
 	if err != nil {
@@ -23,6 +22,8 @@ func (f *Forwarder) StartXDPForwarder(ctx context.Context) error {
 		return fmt.Errorf("NewXDPSocket: %w", err)
 	}
 
-	go f.RunXDPBatchLoop(ctx, sock, umem)
+	// Run single worker (workerID=0) in background
+	workerID := 0
+	go f.RunXDPBatchLoop(ctx, sock, umem, workerID)
 	return nil
 }

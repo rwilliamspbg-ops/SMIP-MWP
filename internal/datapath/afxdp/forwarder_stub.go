@@ -4,9 +4,11 @@
 package afxdp
 
 import (
+	"context"
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"smip-mwp/internal/routing"
 )
@@ -24,4 +26,22 @@ func NewForwarder(cfg Config, routeTable *routing.Table) (*Forwarder, error) {
 	f.pktPool = &sync.Pool{New: func() interface{} { return make([]byte, size) }}
 	f.logger.Printf("stub forwarder created iface=%s", cfg.Interface)
 	return f, nil
+}
+
+// Start is a stub implementation for non-AF_XDP mode
+func (f *Forwarder) Start(ctx context.Context) {
+	f.logger.Println("stub mode: Start() called but no workers spawned")
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			f.logger.Println("stub mode: context cancelled")
+			return
+		case <-ticker.C:
+			// Periodic status update
+			f.logger.Printf("stub tick: %v", f.running)
+		}
+	}
 }
