@@ -62,20 +62,23 @@ func BenchmarkDecryptInPlace(b *testing.B) {
 		prepN = maxPrep
 	}
 	cts := make([][]byte, prepN)
+	nonces := make([]uint64, prepN)
 	for i := 0; i < prepN; i++ {
-		ct, err := sess.Encrypt(payload, uint64(i))
+		nonce := uint64(i)
+		ct, err := sess.Encrypt(payload, nonce)
 		if err != nil {
 			b.Fatalf("prepare encrypt alloc: %v", err)
 		}
 		dst := make([]byte, len(ct))
 		copy(dst, ct)
 		cts[i] = dst
+		nonces[i] = nonce
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		idx := i % len(cts)
-		if _, err := sess.DecryptInPlace(cts[idx], uint64(i)); err != nil {
+		if _, err := sess.DecryptInPlace(cts[idx], nonces[idx]); err != nil {
 			b.Fatalf("decrypt inplace: %v", err)
 		}
 	}
