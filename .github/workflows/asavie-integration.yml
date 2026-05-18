@@ -6,6 +6,10 @@ on:
       iface:
         description: 'Network interface to use for XDP (e.g., eth0)'
         required: true
+      experiments:
+        description: 'Run experiment sweep (baseline/throughput/lowlat)'
+        required: false
+        default: 'false'
       run_bench:
         description: 'Run benchmark harness after integration test (true/false)'
         required: false
@@ -35,14 +39,20 @@ jobs:
       - name: Install deps
         run: go mod download
 
-      - name: Run asavie integration script
+      - name: Run asavie integration or experiments
         env:
           XDP_IFACE: ${{ inputs.iface }}
-          RUN_XDP_INTEGRATION: 1
-          RUN_BENCH: ${{ inputs.run_bench }}
         run: |
           chmod +x ./scripts/run_asavie_integration.sh
-          ./scripts/run_asavie_integration.sh
+          chmod +x ./scripts/run_experiments.sh || true
+          if [ "${{ inputs.experiments }}" = "true" ]; then
+            echo "Running experiments sweep"
+            ./scripts/run_experiments.sh
+          else
+            export RUN_XDP_INTEGRATION=1
+            export RUN_BENCH=${{ inputs.run_bench }}
+            ./scripts/run_asavie_integration.sh
+          fi
 
       - name: Install graphviz & generate flamegraphs
         if: ${{ inputs.run_bench == 'true' }}
