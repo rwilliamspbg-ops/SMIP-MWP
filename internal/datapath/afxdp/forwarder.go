@@ -1,7 +1,17 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright 2026 rwilliamspbg-ops
+//
+// This file is part of SMIP-MWP.
+// SMIP-MWP is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
+// See the LICENSE file in the project root for details.
+
 package afxdp
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"sync"
@@ -12,13 +22,16 @@ import (
 
 // Config contains lightweight AF_XDP options used by the stub forwarder.
 type Config struct {
-	Interface  string
-	QueueID    int
-	ZeroCopy   bool
-	NumFrames  int
-	FrameSize  int
-	BatchSize  int
-	NumWorkers int // number of per-CPU workers / queues to spawn (0 -> NumCPU)
+	Interface string
+	QueueID   int
+	ZeroCopy  bool
+	NumFrames int
+	FrameSize int
+	BatchSize int
+	// Adaptive batch sizing bounds
+	BatchSizeMin int
+	BatchSizeMax int
+	NumWorkers   int // number of per-CPU workers / queues to spawn (0 -> NumCPU)
 	// FillThreshold controls how many descriptors we attempt to keep
 	// available on the UMEM Fill ring. If zero, defaults to BatchSize.
 	FillThreshold int
@@ -47,15 +60,49 @@ type Forwarder struct {
 	routeTable *routing.Table
 	running    bool
 
-	// sessions holds per-session crypto state keyed by SessionID (16 bytes).
-	sessions map[[16]byte]*Session
-	mu       sync.RWMutex
+	// Sharded session map to reduce global RWMutex contention. Use a fixed
+	// number of shards (power-of-two recommended) and hash the first 8
+	// bytes of the session ID to select a shard.
+	sessionShards [16]struct {
+		sessions map[[16]byte]*Session
+		mu       sync.RWMutex
+	}
+	// pktPool supplies buffers for constructing fallback packets to reduce
+	// per-worker pkt pools (initialized in Start) to avoid global sync.Pool contention.
+	// If nil, legacy `pktPool` may be used.
+	workerPools []*workerPktPool
 	// pktPool supplies buffers for constructing fallback packets to reduce
 	// per-packet allocations in the hot path. Buffers are sized to `cfg.FrameSize`.
 	pktPool *sync.Pool
 	// worker lifecycle
 	workersWG     sync.WaitGroup
 	workersCancel context.CancelFunc
+}
+
+const numSessionShards = 16
+
+// initSessionShards ensures internal maps are allocated for each shard.
+func (f *Forwarder) initSessionShards() {
+	for i := 0; i < numSessionShards; i++ {
+		if f.sessionShards[i].sessions == nil {
+			f.sessionShards[i].sessions = make(map[[16]byte]*Session)
+		}
+	}
+}
+
+func (f *Forwarder) getShardIndex(sid [16]byte) int {
+	return int(binary.BigEndian.Uint64(sid[:8]) % uint64(numSessionShards))
+}
+
+// GetSession returns a session pointer or nil if not present. This is the
+// preferred hot-path accessor to avoid global locks.
+func (f *Forwarder) GetSession(sid [16]byte) *Session {
+	idx := f.getShardIndex(sid)
+	shard := &f.sessionShards[idx]
+	shard.mu.RLock()
+	s := shard.sessions[sid]
+	shard.mu.RUnlock()
+	return s
 }
 
 // Run executes the forwarder loop until context cancellation.
@@ -106,18 +153,22 @@ func (f *Forwarder) String() string { return fmt.Sprintf("afxdp.Forwarder(iface=
 
 // AddSession registers a session for a given session ID and records a handshake metric.
 func (f *Forwarder) AddSession(sid [16]byte, s *Session) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.sessions == nil {
-		f.sessions = make(map[[16]byte]*Session)
+	idx := f.getShardIndex(sid)
+	shard := &f.sessionShards[idx]
+	shard.mu.Lock()
+	if shard.sessions == nil {
+		shard.sessions = make(map[[16]byte]*Session)
 	}
-	f.sessions[sid] = s
+	shard.sessions[sid] = s
+	shard.mu.Unlock()
 	IncHandshake()
 }
 
 // RemoveSession removes a session by its session ID.
 func (f *Forwarder) RemoveSession(sid [16]byte) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	delete(f.sessions, sid)
+	idx := f.getShardIndex(sid)
+	shard := &f.sessionShards[idx]
+	shard.mu.Lock()
+	delete(shard.sessions, sid)
+	shard.mu.Unlock()
 }

@@ -1,6 +1,15 @@
 //go:build withafxdp
 // +build withafxdp
 
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright 2026 rwilliamspbg-ops
+//
+// This file is part of SMIP-MWP.
+// SMIP-MWP is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
+// See the LICENSE file in the project root for details.
+
 package afxdp
 
 import (
@@ -29,13 +38,15 @@ func NewForwarder(cfg Config, routeTable *routing.Table) (*Forwarder, error) {
 	// scaffold minimal and safe for CI/dev environments.
 
 	l := log.New(os.Stdout, "afxdp:xdp: ", log.LstdFlags)
-	f := &Forwarder{cfg: cfg, logger: l, routeTable: routeTable, sessions: make(map[[16]byte]*Session)}
+	f := &Forwarder{cfg: cfg, logger: l, routeTable: routeTable}
 	// initialize packet pool sized to frame size
 	size := cfg.FrameSize
 	if size <= 0 {
 		size = 2048
 	}
 	f.pktPool = &sync.Pool{New: func() interface{} { b := make([]byte, size); return &b }}
+	// initialize sharded session maps
+	f.initSessionShards()
 	f.logger.Printf("afxdp: xdp-mode forwarder initialized iface=%s zeroCopy=%v", cfg.Interface, cfg.ZeroCopy)
 
 	// Initialize UMEM
@@ -70,6 +81,14 @@ func (f *Forwarder) Start(ctx context.Context) {
 	num := f.cfg.NumWorkers
 	if num <= 0 {
 		num = runtime.NumCPU()
+	}
+
+	// initialize per-worker pkt pools to reduce global sync.Pool usage
+	if f.workerPools == nil {
+		f.workerPools = make([]*workerPktPool, num)
+		for i := 0; i < num; i++ {
+			f.workerPools[i] = newWorkerPktPool(f.cfg.FrameSize, 32)
+		}
 	}
 
 	// create worker context and store cancel so Stop() can cancel all

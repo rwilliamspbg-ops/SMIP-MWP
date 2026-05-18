@@ -1,0 +1,7 @@
+goos: linux
+goarch: amd64
+pkg: smip-mwp/internal/datapath/afxdp
+cpu: AMD EPYC 7763 64-Core Processor                
+BenchmarkRunXDPLoop_WithCrypto-4   	35583835	      2059 ns/op	     560 B/op	       9 allocs/op
+PASS
+ok  	smip-mwp/internal/datapath/afxdp	75.332s

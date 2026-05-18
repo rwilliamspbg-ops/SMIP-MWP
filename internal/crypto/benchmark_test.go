@@ -1,3 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright 2026 rwilliamspbg-ops
+//
+// This file is part of SMIP-MWP.
+// SMIP-MWP is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
+// See the LICENSE file in the project root for details.
+
 package crypto
 
 import (
@@ -50,23 +59,39 @@ func BenchmarkDecryptInPlace(b *testing.B) {
 		payload[i] = byte(i)
 	}
 
-	// prepare a ciphertext for each iteration using the allocation-based helper
-	// which avoids potential aliasing issues when preparing ciphertexts in bulk.
-	cts := make([][]byte, b.N)
-	for i := 0; i < b.N; i++ {
-		ct, err := sess.Encrypt(payload, uint64(i))
+	// prepare a bounded ciphertext pool to avoid OOM when b.N is large
+	// (long benchtime can make b.N huge). Use a circular buffer of prepared
+	// ciphertexts and index into it during the timed loop.
+	maxPrep := 100000 // cap preparations to 100k entries
+	prepN := b.N
+	if prepN <= 0 {
+		prepN = 1
+	}
+	if prepN > maxPrep {
+		prepN = maxPrep
+	}
+	cts := make([][]byte, prepN)
+	nonces := make([]uint64, prepN)
+	for i := 0; i < prepN; i++ {
+		nonce := uint64(i)
+		ct, err := sess.Encrypt(payload, nonce)
 		if err != nil {
 			b.Fatalf("prepare encrypt alloc: %v", err)
 		}
-		// copy to ensure each entry is independent
 		dst := make([]byte, len(ct))
 		copy(dst, ct)
 		cts[i] = dst
+		nonces[i] = nonce
 	}
 
+	// allocate a reusable scratch buffer to avoid per-iteration allocations
+	// while also preserving the original ciphertexts in `cts`.
+	scratch := make([]byte, len(cts[0]))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := sess.DecryptInPlace(cts[i], uint64(i)); err != nil {
+		idx := i % len(cts)
+		copy(scratch, cts[idx])
+		if _, err := sess.DecryptInPlace(scratch, nonces[idx]); err != nil {
 			b.Fatalf("decrypt inplace: %v", err)
 		}
 	}

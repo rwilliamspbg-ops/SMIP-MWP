@@ -1,6 +1,15 @@
 //go:build withafxdp
 // +build withafxdp
 
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright 2026 rwilliamspbg-ops
+//
+// This file is part of SMIP-MWP.
+// SMIP-MWP is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
+// See the LICENSE file in the project root for details.
+
 package afxdp
 
 import (
@@ -42,6 +51,16 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 	if batchSize <= 0 {
 		batchSize = 64
 	}
+	// adaptive bounds
+	minBatch := f.cfg.BatchSizeMin
+	maxBatch := f.cfg.BatchSizeMax
+	if minBatch <= 0 {
+		minBatch = 16
+	}
+	if maxBatch <= 0 {
+		maxBatch = 256
+	}
+
 	batchInterval := 10 * time.Millisecond // Reduced for lower latency
 	ticker := time.NewTicker(batchInterval)
 	defer ticker.Stop()
@@ -54,6 +73,12 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 	if f.cfg.FillEMAAlpha > 0 {
 		alpha = f.cfg.FillEMAAlpha
 	}
+
+	// Pre-allocate descriptor buffer to avoid per-poll allocations.
+	descBuf := make([]*XDPDescriptor, 0, batchSize)
+
+	// worker-local session cache
+	var wcache workerSessionCache
 
 	for {
 		select {
@@ -126,11 +151,24 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 		}
 
 		if numRx == 0 {
+			// on quiet cycles, consider decreasing batch size
+			if batchSize > minBatch {
+				batchSize = batchSize / 2
+				if batchSize < minBatch {
+					batchSize = minBatch
+				}
+			}
 			continue
 		}
 
-		// Receive descriptors and process frames in-place (zero-copy hot path)
-		descs := xsk.Receive(numRx)
+		// Receive descriptors and reuse pre-allocated buffer to avoid allocations
+		descBuf = descBuf[:0]
+		tmp := xsk.Receive(numRx)
+		if len(tmp) == 0 {
+			continue
+		}
+		descBuf = append(descBuf, tmp...)
+		descs := descBuf
 		IncRxWorker(workerID, len(descs))
 		start := time.Now()
 
@@ -158,9 +196,14 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 			var sid [16]byte
 			copy(sid[:], sessionID)
 
-			f.mu.RLock()
-			sess := f.sessions[sid]
-			f.mu.RUnlock()
+			// fast path: check worker-local cache
+			sess := wcache.Get(sid)
+			if sess == nil {
+				sess = f.GetSession(sid)
+				if sess != nil {
+					wcache.Put(sid, sess)
+				}
+			}
 
 			if sess != nil && sess.CryptoState != nil {
 				payloadLen := int(hdr.Length())
@@ -186,6 +229,18 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 		if len(descs) > 0 {
 			xsk.Transmit(descs)
 			ObserveProcessingLatency(workerID, time.Since(start).Seconds())
+			// adaptive batch sizing: if we consistently fill the batch, increase
+			if numRx >= batchSize && batchSize < maxBatch {
+				batchSize = batchSize * 2
+				if batchSize > maxBatch {
+					batchSize = maxBatch
+				}
+			} else if numRx < batchSize/2 && batchSize > minBatch {
+				batchSize = batchSize / 2
+				if batchSize < minBatch {
+					batchSize = minBatch
+				}
+			}
 		}
 	}
 }

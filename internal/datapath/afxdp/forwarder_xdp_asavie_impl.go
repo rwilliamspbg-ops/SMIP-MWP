@@ -1,6 +1,15 @@
 //go:build withafxdp && asavie
 // +build withafxdp,asavie
 
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright 2026 rwilliamspbg-ops
+//
+// This file is part of SMIP-MWP.
+// SMIP-MWP is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
+// See the LICENSE file in the project root for details.
+
 package afxdp
 
 import (
@@ -102,10 +111,6 @@ func NewXDPSocket(iface string, queue int, umem *UMEM) (*XDPSocket, error) {
 
 	xsk, err := xdpPkg.NewSocket(link.Attrs().Index, queue, opts)
 	if err != nil {
-		// Provide a more actionable error to help debug common causes:
-		// - missing libbpf development headers at build-time
-		// - NIC/driver does not support AF_XDP (many cloud virtual NICs do not)
-		// - UMEM/ring parameters incompatible with the kernel/driver
 		hint := "" +
 			"possible causes: install libbpf-dev and bpftool, ensure kernel and NIC driver support AF_XDP sockets, " +
 			"and verify UMEM parameters (frame size / num frames).\n" +
