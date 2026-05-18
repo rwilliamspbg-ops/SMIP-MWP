@@ -172,9 +172,8 @@ theorem bounded_hops_to_none_or_dst {rt : RoutingTable} {dist : Distance}
         simp [this]
         exact Hk'
 
-      /- Stronger loop-freedom placeholder (proves True until more properties are
-         formalized). -/
-      theorem routing_loop_free_stronger : True := by trivial
+      /- Stronger loop-freedom placeholder removed; see top-level theorem.
+        (A proper statement is added at top-level after this proof.) -/
 
       /- Concrete example: a small acyclic graph and its distance-to-destination.
          Nodes: 0,1,2,3. Edges: 0->1,0->2,1->3,2->3. Destination node is 3. -/
@@ -225,4 +224,42 @@ theorem bounded_hops_to_none_or_dst {rt : RoutingTable} {dist : Distance}
           · exact hk
           · simp [q, heq, h]
 
+/- Stronger loop-freedom: if `rt` is well-formed with respect to `dist`, then
+   starting from any packet `p` there exists a bounded number of hops (≤ dist)
+   after which routing yields no next-hop or reaches the destination. This is
+   essentially a top-level wrapper around `bounded_hops_to_none_or_dst`. -/
+theorem routing_loop_free_stronger {rt : RoutingTable} {dist : Distance}
+    (wf : routing_wf rt dist) (p : Packet) :
+  ∃ k, k ≤ dist p.loc p.dst ∧ (let q := forward_n rt k p; rt q.loc q.dst = none ∨ q.loc = q.dst) := by
+  obtain ⟨k, hk, H⟩ := bounded_hops_to_none_or_dst wf p
+  use k
+  constructor
+  · exact hk
+  · exact H
+
 end Smip
+
+/- If the routing table is well-formed and for a fixed destination `d` every
+   non-destination node has a next-hop (i.e., `rt` is total toward `d`),
+   then starting from any packet destined for `d` you will reach `d` within
+   at most `dist p.loc d` hops. -/
+theorem routing_reaches_dst_if_total {rt : RoutingTable} {dist : Distance}
+    (wf : routing_wf rt dist) {d : Node}
+    (total : ∀ n, n ≠ d → ∃ next, rt n d = some next)
+    (p : Packet) (h : p.dst = d) :
+  ∃ k, k ≤ dist p.loc d ∧ (forward_n rt k p).loc = d := by
+  -- Use the bounded-hops theorem which gives either `rt q.loc q.dst = none` or `q.loc = q.dst`.
+  obtain ⟨k, hk, H⟩ := bounded_hops_to_none_or_dst wf p
+  cases H with
+  | inl hnone =>
+    let q := forward_n rt k p
+    have hn : rt q.loc q.dst = none := hnone
+    by_cases hq : q.loc = d
+    · use k; constructor; exact hk; simp [hq]
+    · -- q.loc ≠ d, but `total` yields some next-hop, contradicting `none`.
+      have ex := total q.loc (by intro Contra; apply hq; exact Contra.symm)
+      obtain ⟨next, hnex⟩ := ex
+      simp [hnex] at hn
+      contradiction
+  | inr heq =>
+    use k; constructor; exact hk; simp [heq, h]
