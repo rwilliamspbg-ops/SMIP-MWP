@@ -31,3 +31,5 @@ How to contribute proofs
 - Add Lean files under `Lean/Smip/`.
 - Write small, incremental lemmas and run `lake build` frequently.
 - Use `#check` and `#eval` in files for quick experiments in the VS Code Lean REPL.
+
+<!-- CI retrigger: minor edit to trigger workflow -->
