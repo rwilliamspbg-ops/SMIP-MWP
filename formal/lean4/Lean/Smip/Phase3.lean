@@ -304,6 +304,61 @@ theorem reach_dst_finite_nodes {rt : RoutingTable} {dist : Distance}
       simp [hnex] at hn
       contradiction
 
+/-! Finite-map (simple) model for routing tables.
+
+We model a finite map as a `List (Node × Node)` of key→value pairs and
+provide a recursive `fmap_lookup` plus a builder that constructs the map
+for a particular destination `d` by running `pick_next?` on each node in a
+provided finite `nodes : List Node`.
+/-
+
+/-- A minimal finite map: list of (key,value) pairs. -/
+abbrev FMap := List (Node × Node)
+
+/-- Lookup in the finite map. -/
+partial def fmap_lookup : FMap → Node → Option Node
+  | [], _ => none
+  | (k, v) :: t, n => if k = n then some v else fmap_lookup t n
+
+/-- Build a finite map for a fixed destination `d` by scanning `nodes`. -/
+partial def build_fmap_for_dest (nodes : List Node) (neighbors : Neighbors)
+    (dist : Distance) (d : Node) : FMap :=
+  match nodes with
+  | [] => []
+  | h :: t =>
+    match pick_next? (neighbors h) h d dist with
+    | none => build_fmap_for_dest t neighbors dist d
+    | some nxt => (h, nxt) :: build_fmap_for_dest t neighbors dist d
+
+/-- The finite-map lookup agrees with `build_rt` for nodes contained in
+    the provided `nodes` list (i.e., for the finite domain we built). -/
+theorem fmap_lookup_build_rt_eq (nodes : List Node) (neighbors : Neighbors)
+    (dist : Distance) (d : Node) :
+  ∀ x, x ∈ nodes → fmap_lookup (build_fmap_for_dest nodes neighbors dist d) x =
+    build_rt neighbors dist x d := by
+  intro x hx
+  induction nodes with
+  | nil => simp at hx; contradiction
+  | cons hd tl ih =>
+    simp [build_fmap_for_dest]
+    by_cases heq : x = hd
+    · subst heq
+      simp [fmap_lookup]
+      -- consider whether head produced a next-hop
+      cases pick_next? (neighbors hd) hd d dist <;> simp [build_rt, pick_next?]
+      · simp
+      · simp
+    · -- x ∈ tl, lookup will recurse past head
+      simp [fmap_lookup]
+      by_cases c : pick_next? (neighbors hd) hd d dist
+      · simp [c]
+        apply ih
+        simp at hx; exact hx
+      · simp [c]
+        apply ih
+        simp at hx; exact hx
+
+
 end Smip
 
 /- No cycles under `routing_wf`: following next-hops strictly decreases `dist`,
