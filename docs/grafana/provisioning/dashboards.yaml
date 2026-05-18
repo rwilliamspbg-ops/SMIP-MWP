@@ -1,0 +1,9 @@
+apiVersion: 1
+providers:
+  - name: 'afxdp'
+    orgId: 1
+    folder: 'AF_XDP'
+    type: file
+    disableDeletion: false
+    options:
+      path: /var/lib/grafana/dashboards/afxdp
