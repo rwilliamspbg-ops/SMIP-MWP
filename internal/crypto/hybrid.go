@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 
 	"golang.org/x/crypto/chacha20poly1305"
@@ -54,7 +55,76 @@ var (
 // hkdfCache stores derived session key material to avoid repeated HKDF work
 // for the same combinedSecret+sessionInfo input. It is bounded so repeated
 // session churn cannot grow memory without limit.
-var hkdfCache = newLRUCache(MaxHKDFCacheSize)
+// hkdfCache is a sharded LRU cache to reduce mutex contention on lookups/writes
+// under multi-core workloads. Each shard is a separate LRU with its own mutex.
+var hkdfCache = newShardedLRU(runtime.NumCPU(), MaxHKDFCacheSize)
+
+// shardedLRU provides a simple sharded wrapper around the existing lruCache
+// implementation. The shard count is rounded up to the next power-of-two so
+// shard selection can use a fast mask operation.
+type shardedLRU struct {
+	shards []*lruCache
+	mask   uint64
+}
+
+func nextPow2(v int) int {
+	if v <= 1 {
+		return 1
+	}
+	n := 1
+	for n < v {
+		n <<= 1
+	}
+	return n
+}
+
+func newShardedLRU(requestedShards int, totalMaxSize int) *shardedLRU {
+	if requestedShards < 1 {
+		requestedShards = 1
+	}
+	shards := nextPow2(requestedShards)
+	perShard := totalMaxSize / shards
+	if perShard < 1 {
+		perShard = 1
+	}
+	s := &shardedLRU{shards: make([]*lruCache, shards), mask: uint64(shards - 1)}
+	for i := 0; i < shards; i++ {
+		s.shards[i] = newLRUCache(perShard)
+	}
+	return s
+}
+
+func (s *shardedLRU) shardForKey(key [32]byte) *lruCache {
+	idx := binary.BigEndian.Uint64(key[:8]) & s.mask
+	return s.shards[idx]
+}
+
+func (s *shardedLRU) Get(key [32]byte) (hkdfCacheEntry, bool) {
+	if s == nil {
+		return hkdfCacheEntry{}, false
+	}
+	shard := s.shardForKey(key)
+	return shard.Get(key)
+}
+
+func (s *shardedLRU) Put(key [32]byte, val hkdfCacheEntry) {
+	if s == nil {
+		return
+	}
+	shard := s.shardForKey(key)
+	shard.Put(key, val)
+}
+
+func (s *shardedLRU) Len() int {
+	if s == nil {
+		return 0
+	}
+	total := 0
+	for _, sh := range s.shards {
+		total += sh.Len()
+	}
+	return total
+}
 
 type hkdfCacheEntry struct {
 	key       [KeySize]byte
@@ -141,6 +211,46 @@ func deriveCacheKey(combinedSecret, sessionInfo []byte) [32]byte {
 	var key [32]byte
 	copy(key[:], h.Sum(nil))
 	return key
+}
+
+// PrederiveSession computes HKDF-derived session material and stores it in
+// the in-memory LRU cache so subsequent NewHybridSession calls avoid the
+// HKDF expansion work on the hot path. This is useful to pre-warm caches
+// during session establishment.
+func PrederiveSession(combinedSecret, sessionInfo []byte) error {
+	if combinedSecret == nil || sessionInfo == nil {
+		return fmt.Errorf(" PrederiveSession: inputs cannot be nil")
+	}
+	cacheKey := deriveCacheKey(combinedSecret, sessionInfo)
+	if _, ok := hkdfCache.Get(cacheKey); ok {
+		return nil
+	}
+
+	label := []byte(hkdfLabelSession)
+	info := append(label, sessionInfo...)
+	r := hkdf.New(sha256.New, combinedSecret, nil, info)
+
+	key := make([]byte, KeySize)
+	if _, err := io.ReadFull(r, key); err != nil {
+		return fmt.Errorf("crypto: HKDF key derivation: %w", err)
+	}
+
+	var nonceBase [NonceSize]byte
+	if _, err := io.ReadFull(r, nonceBase[:]); err != nil {
+		return fmt.Errorf("crypto: nonce base derivation: %w", err)
+	}
+
+	var mask [8]byte
+	if _, err := io.ReadFull(r, mask[:]); err != nil {
+		return fmt.Errorf("crypto: seqMask derivation: %w", err)
+	}
+
+	var entry hkdfCacheEntry
+	copy(entry.key[:], key)
+	copy(entry.nonceBase[:], nonceBase[:])
+	entry.seqMask = binary.BigEndian.Uint64(mask[:])
+	hkdfCache.Put(cacheKey, entry)
+	return nil
 }
 
 // HybridSession holds the symmetric AEAD state derived from a hybrid KEX.
