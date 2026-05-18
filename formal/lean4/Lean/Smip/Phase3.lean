@@ -264,6 +264,18 @@ theorem routing_loop_free_stronger {rt : RoutingTable} {dist : Distance}
   · exact hk
   · exact H
 
+/- If we have a numeric upper bound `m` such that `dist p.loc p.dst < m`, then
+   the bounded-hops result yields an explicit `k < m` with the same guarantee. -/
+theorem bounded_hops_bound_by_m {rt : RoutingTable} {dist : Distance}
+    (wf : routing_wf rt dist) (p : Packet) (m : Nat) (h : dist p.loc p.dst < m) :
+  ∃ k, k < m ∧ (let q := forward_n rt k p; rt q.loc q.dst = none ∨ q.loc = q.dst) := by
+  obtain ⟨k, hk, H⟩ := bounded_hops_to_none_or_dst wf p
+  have klt : k < m := lt_of_le_of_lt hk h
+  use k
+  constructor
+  · exact klt
+  · exact H
+
 end Smip
 
 /- No cycles under `routing_wf`: following next-hops strictly decreases `dist`,
