@@ -1,3 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright 2026 rwilliamspbg-ops
+//
+// This file is part of SMIP-MWP.
+// SMIP-MWP is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
+// See the LICENSE file in the project root for details.
+
 package afxdp
 
 import (
@@ -13,13 +22,16 @@ import (
 
 // Config contains lightweight AF_XDP options used by the stub forwarder.
 type Config struct {
-	Interface  string
-	QueueID    int
-	ZeroCopy   bool
-	NumFrames  int
-	FrameSize  int
-	BatchSize  int
-	NumWorkers int // number of per-CPU workers / queues to spawn (0 -> NumCPU)
+	Interface string
+	QueueID   int
+	ZeroCopy  bool
+	NumFrames int
+	FrameSize int
+	BatchSize int
+	// Adaptive batch sizing bounds
+	BatchSizeMin int
+	BatchSizeMax int
+	NumWorkers   int // number of per-CPU workers / queues to spawn (0 -> NumCPU)
 	// FillThreshold controls how many descriptors we attempt to keep
 	// available on the UMEM Fill ring. If zero, defaults to BatchSize.
 	FillThreshold int
