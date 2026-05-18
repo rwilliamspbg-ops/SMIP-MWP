@@ -33,17 +33,18 @@ func newWorkerPktPool(bufSize int, capacity int) *workerPktPool {
 // buffer length as needed; pool guarantees capacity is at least bufSize.
 func (p *workerPktPool) Get() *[]byte {
 	if p == nil {
-		b := make([]byte, p.size)
+		b := make([]byte, 0)
 		return &b
 	}
 	n := len(p.bufs)
 	if n == 0 {
-		b := make([]byte, p.size)
+		b := make([]byte, 0, p.size)
 		return &b
 	}
 	// pop
 	buf := p.bufs[n-1]
 	p.bufs = p.bufs[:n-1]
+	buf = buf[:0]
 	return &buf
 }
 
@@ -53,6 +54,6 @@ func (p *workerPktPool) Put(b *[]byte) {
 		return
 	}
 	// reset length to zero but keep capacity
-	*b = (*b)[:cap(*b)]
+	*b = (*b)[:0]
 	p.bufs = append(p.bufs, *b)
 }

@@ -16,6 +16,7 @@
 package crypto
 
 import (
+	"container/list"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
@@ -36,6 +37,8 @@ const (
 	KeySize = 32
 	// NonceSize for GCM / ChaCha20-Poly1305.
 	NonceSize = 12
+	// MaxHKDFCacheSize bounds in-memory derived session material.
+	MaxHKDFCacheSize = 10000
 
 	// Domain-separation labels for HKDF.
 	hkdfLabelSession = "smip-mwp-session-v1"
@@ -49,18 +52,95 @@ var (
 )
 
 // hkdfCache stores derived session key material to avoid repeated HKDF work
-// for the same combinedSecret+sessionInfo input. This is a small in-memory
-// cache intended for microbenchmarks and short-lived processes; it is not
-// intended to be a long-lived production cache with eviction.
-var (
-	hkdfCacheMu sync.RWMutex
-	hkdfCache   = make(map[[32]byte]hkdfCacheEntry)
-)
+// for the same combinedSecret+sessionInfo input. It is bounded so repeated
+// session churn cannot grow memory without limit.
+var hkdfCache = newLRUCache(MaxHKDFCacheSize)
 
 type hkdfCacheEntry struct {
 	key       [KeySize]byte
 	nonceBase [NonceSize]byte
 	seqMask   uint64
+}
+
+type lruCacheEntry struct {
+	key   [32]byte
+	value hkdfCacheEntry
+}
+
+type lruCache struct {
+	mu      sync.Mutex
+	cache   map[[32]byte]*list.Element
+	order   *list.List
+	maxSize int
+}
+
+func newLRUCache(maxSize int) *lruCache {
+	if maxSize < 1 {
+		maxSize = 1
+	}
+	return &lruCache{
+		cache:   make(map[[32]byte]*list.Element, maxSize),
+		order:   list.New(),
+		maxSize: maxSize,
+	}
+}
+
+func (c *lruCache) Get(key [32]byte) (hkdfCacheEntry, bool) {
+	if c == nil {
+		return hkdfCacheEntry{}, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	el, ok := c.cache[key]
+	if !ok {
+		return hkdfCacheEntry{}, false
+	}
+	c.order.MoveToFront(el)
+	entry := el.Value.(lruCacheEntry)
+	return entry.value, true
+}
+
+func (c *lruCache) Put(key [32]byte, val hkdfCacheEntry) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if el, ok := c.cache[key]; ok {
+		el.Value = lruCacheEntry{key: key, value: val}
+		c.order.MoveToFront(el)
+		return
+	}
+	el := c.order.PushFront(lruCacheEntry{key: key, value: val})
+	c.cache[key] = el
+	if c.order.Len() <= c.maxSize {
+		return
+	}
+	back := c.order.Back()
+	if back == nil {
+		return
+	}
+	entry := back.Value.(lruCacheEntry)
+	delete(c.cache, entry.key)
+	c.order.Remove(back)
+}
+
+func (c *lruCache) Len() int {
+	if c == nil {
+		return 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.order.Len()
+}
+
+func deriveCacheKey(combinedSecret, sessionInfo []byte) [32]byte {
+	h := sha256.New()
+	_, _ = h.Write(combinedSecret)
+	_, _ = h.Write(sessionInfo)
+	var key [32]byte
+	copy(key[:], h.Sum(nil))
+	return key
 }
 
 // HybridSession holds the symmetric AEAD state derived from a hybrid KEX.
@@ -70,19 +150,15 @@ type HybridSession struct {
 	aead      cipher.AEAD
 	nonceBase [NonceSize]byte // randomised per-session; XOR'd with seq counter
 	seqMask   uint64          // extra entropy mixed into nonce
+	nonceBuf  [NonceSize]byte // reusable nonce buffer for hot-path calls
 }
 
 // NewHybridSession derives a session from combinedSecret (output of hybrid KEX HKDF)
 // and sessionInfo (e.g. SrcID || DstID || FlowLabel for domain separation).
 func NewHybridSession(combinedSecret, sessionInfo []byte) (*HybridSession, error) {
 	// First check small cache to avoid re-running HKDF for identical inputs.
-	var cacheKey [32]byte
-	h := sha256.Sum256(append(combinedSecret, sessionInfo...))
-	copy(cacheKey[:], h[:])
-
-	hkdfCacheMu.RLock()
-	if e, ok := hkdfCache[cacheKey]; ok {
-		hkdfCacheMu.RUnlock()
+	cacheKey := deriveCacheKey(combinedSecret, sessionInfo)
+	if e, ok := hkdfCache.Get(cacheKey); ok {
 		aead, err := newAEAD(e.key[:])
 		if err != nil {
 			return nil, err
@@ -92,7 +168,6 @@ func NewHybridSession(combinedSecret, sessionInfo []byte) (*HybridSession, error
 		s.seqMask = e.seqMask
 		return s, nil
 	}
-	hkdfCacheMu.RUnlock()
 
 	// HKDF-Expand: extract session key material
 	label := []byte(hkdfLabelSession)
@@ -132,9 +207,7 @@ func NewHybridSession(combinedSecret, sessionInfo []byte) (*HybridSession, error
 	copy(entry.key[:], key)
 	copy(entry.nonceBase[:], nonceBase[:])
 	entry.seqMask = s.seqMask
-	hkdfCacheMu.Lock()
-	hkdfCache[cacheKey] = entry
-	hkdfCacheMu.Unlock()
+	hkdfCache.Put(cacheKey, entry)
 
 	return s, nil
 }
@@ -154,7 +227,7 @@ func newAEAD(key []byte) (cipher.AEAD, error) {
 
 // buildNonce constructs a unique 12-byte nonce from the session base + sequence number.
 func (s *HybridSession) buildNonce(seq uint64) []byte {
-	nonce := make([]byte, NonceSize)
+	nonce := s.nonceBuf[:]
 	copy(nonce, s.nonceBase[:])
 	// XOR last 8 bytes with (seq ^ seqMask) — counters never repeat for this session.
 	existing := binary.BigEndian.Uint64(nonce[4:])

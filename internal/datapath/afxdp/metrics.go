@@ -10,7 +10,7 @@
 package afxdp
 
 import (
-	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -129,7 +129,7 @@ func flushWorkerCounters() {
 		p := v.(*uint64)
 		val := atomic.SwapUint64(p, 0)
 		if val > 0 {
-			rxPacketsVec.WithLabelValues(fmt.Sprint(worker)).Add(float64(val))
+			rxPacketsVec.WithLabelValues(strconv.Itoa(worker)).Add(float64(val))
 			rxPackets.Add(float64(val))
 		}
 		return true
@@ -139,7 +139,7 @@ func flushWorkerCounters() {
 		p := v.(*uint64)
 		val := atomic.SwapUint64(p, 0)
 		if val > 0 {
-			txPacketsVec.WithLabelValues(fmt.Sprint(worker)).Add(float64(val))
+			txPacketsVec.WithLabelValues(strconv.Itoa(worker)).Add(float64(val))
 			txPackets.Add(float64(val))
 		}
 		return true
@@ -149,7 +149,7 @@ func flushWorkerCounters() {
 		p := v.(*uint64)
 		val := atomic.SwapUint64(p, 0)
 		if val > 0 {
-			droppedPacketsVec.WithLabelValues(fmt.Sprint(worker)).Add(float64(val))
+			droppedPacketsVec.WithLabelValues(strconv.Itoa(worker)).Add(float64(val))
 			droppedPackets.Add(float64(val))
 		}
 		return true
@@ -199,7 +199,7 @@ func IncDroppedWorker(worker int, n int) {
 }
 
 func ObserveProcessingLatency(worker int, seconds float64) {
-	processingLatency.WithLabelValues(fmt.Sprint(worker)).Observe(seconds)
+	processingLatency.WithLabelValues(strconv.Itoa(worker)).Observe(seconds)
 }
 
 // SetFillEMA sets the EMA metric for the adaptive fill controller.
