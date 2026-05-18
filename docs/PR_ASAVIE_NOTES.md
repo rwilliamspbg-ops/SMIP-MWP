@@ -21,3 +21,12 @@ How to run integration (short)
 Notes
 - The integration runs privileged operations; consider using a dedicated test host or VM with host networking.
 - Benchmark pprof artifacts are uploaded as workflow artifacts under `benchmarks/**`. Processing into flamegraphs is left to the operator — I can add an automated post-processing step if desired.
+
+- A helper script was added at `scripts/process_benchmarks.sh` which attempts to compile test binaries and generate SVG flamegraphs from `benchmarks/*cpu.prof`. Run it locally after downloading workflow artifacts:
+
+```bash
+# after downloading and extracting artifacts into the repo root
+./scripts/process_benchmarks.sh
+```
+
+Note: This script is best-effort — it compiles package test binaries and tries to match them to profile files. For reliable symbolization, run the processing on the same host/toolchain that generated the profiles.
