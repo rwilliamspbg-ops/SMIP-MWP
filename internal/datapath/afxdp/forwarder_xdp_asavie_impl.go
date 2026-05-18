@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	xdpPkg "github.com/asavie/xdp"
+	"github.com/vishvananda/netlink"
 )
-import "github.com/vishvananda/netlink"
 
 // realSocketImpl wraps github.com/asavie/xdp.Socket and adapts it to the
 // socketBackend interface used by the forwarder.
@@ -102,7 +102,15 @@ func NewXDPSocket(iface string, queue int, umem *UMEM) (*XDPSocket, error) {
 
 	xsk, err := xdpPkg.NewSocket(link.Attrs().Index, queue, opts)
 	if err != nil {
-		return nil, fmt.Errorf("xdp.NewSocket failed: %w", err)
+		// Provide a more actionable error to help debug common causes:
+		// - missing libbpf development headers at build-time
+		// - NIC/driver does not support AF_XDP (many cloud virtual NICs do not)
+		// - UMEM/ring parameters incompatible with the kernel/driver
+		hint := "" +
+			"possible causes: install libbpf-dev and bpftool, ensure kernel and NIC driver support AF_XDP sockets, " +
+			"and verify UMEM parameters (frame size / num frames).\n" +
+			"Run: 'sudo apt install libbpf-dev bpftool ethtool', then 'ethtool -i " + iface + "', 'sudo bpftool net', and 'dmesg | tail -n 50' to gather kernel messages."
+		return nil, fmt.Errorf("xdp.NewSocket failed: %w\nHint: %s", err, hint)
 	}
 
 	backend := &realSocketImpl{xsk: xsk, frameSize: optsOrDefaultFrameSize(opts)}
