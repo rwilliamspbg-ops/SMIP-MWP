@@ -2,6 +2,14 @@ name: Asavie XDP Integration (self-hosted)
 
 on:
   workflow_dispatch:
+    inputs:
+      iface:
+        description: 'Network interface to use for XDP (e.g., eth0)'
+        required: true
+      run_bench:
+        description: 'Run benchmark harness after integration test (true/false)'
+        required: false
+        default: 'false'
 
 jobs:
   run-integration:
@@ -31,6 +39,14 @@ jobs:
         env:
           XDP_IFACE: ${{ inputs.iface }}
           RUN_XDP_INTEGRATION: 1
+          RUN_BENCH: ${{ inputs.run_bench }}
         run: |
           chmod +x ./scripts/run_asavie_integration.sh
           ./scripts/run_asavie_integration.sh
+
+      - name: Upload artifacts (benchmarks)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asavie-benchmarks
+          path: benchmarks/**
