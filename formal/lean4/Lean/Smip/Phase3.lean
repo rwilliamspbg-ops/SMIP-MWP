@@ -457,6 +457,34 @@ theorem reach_dst_from_nodes_list {rt : RoutingTable} {dist : Distance}
           exact Nat.succ_lt_succ lt
         ⟨fi.val + 1, pf⟩
 
+  /-- `get?` on a cons at `k+1` equals `get?` on the tail at `k`. -/
+  theorem list_get?_succ {a : Node} {l : List Node} {k : Nat} :
+    (a :: l).get? (k + 1) = l.get? k := by
+    induction k with
+    | zero => simp [List.get?]
+    | succ k ih => simp [List.get?]; exact ih
+
+  /-- The index produced by `list_index_of` indeed indexes `x` in the list. -/
+  theorem list_index_of_get? (xs : List Node) (x : Node) (h : x ∈ xs) :
+    xs.get? (list_index_of xs x h).val = some x := by
+    induction xs with
+    | nil => simp at h; contradiction
+    | cons hd tl ih =>
+      simp [list_index_of]
+      by_cases heq : x = hd
+      · subst heq; simp
+      · simp [heq]
+        have xin : x ∈ tl := by simp [heq] at h; exact h
+        let fi := list_index_of tl x xin
+        have rec := ih tl x xin
+        -- reduce (hd::tl).get? (fi.val + 1) to tl.get? fi.val
+        have : (hd :: tl).get? (fi.val + 1) = tl.get? fi.val := by
+          induction fi.val with
+          | zero => simp [List.get?]
+          | succ k ihk => simp [List.get?]; exact ihk
+        simp [this] at rec
+        exact rec
+
   -- Build a `Fin n → Node` mapping from the `nodes : List Node` by using
   -- `List.get?` with a safe default (the default is never used when index is
   -- valid because `i.val < nodes.length`).
