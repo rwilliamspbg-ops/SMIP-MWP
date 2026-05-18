@@ -422,3 +422,58 @@ theorem reach_dst_from_nodes_list {rt : RoutingTable} {dist : Distance}
     obtain ⟨next, ⟨next_in, hrt⟩⟩ := ex
     simp [hrt] at hn
     contradiction
+
+/- Fin-indexed version: nodes given by `nodes : Fin n → Node`. This avoids
+   external dependencies while providing a concrete finite-node abstraction.
+theorem reach_dst_from_fin_nodes {rt : RoutingTable} {dist : Distance}
+    (wf : routing_wf rt dist) {d : Node} {n : Nat} (nodes : Fin n → Node)
+    (dist_bound_on_nodes : ∀ i : Fin n, dist (nodes i) d < n)
+    (total_on_nodes : ∀ i : Fin n, nodes i ≠ d → ∃ j : Fin n, rt (nodes i) d = some (nodes j))
+    (p : Packet) (hp : p.dst = d) (hloc : ∃ i : Fin n, nodes i = p.loc) :
+  ∃ k, k < n ∧ (forward_n rt k p).loc = d := by
+  obtain ⟨i, hi⟩ := hloc
+  have db : dist p.loc p.dst < n := by
+    simp [hp]
+    simp [hi]
+    apply dist_bound_on_nodes
+  obtain ⟨k, hk, H⟩ := bounded_hops_bound_by_m wf p n db
+  -- show that each intermediate location is one of the `nodes` (exists Fin index)
+  have locs_in_nodes : ∀ m, m ≤ k → ∃ j : Fin n, nodes j = (forward_n rt m p).loc := by
+    intro m hm
+    induction hm with
+    | zero =>
+      use i; simp [forward_n, hi]
+    | succ m' ih =>
+      obtain ⟨j, hj⟩ := ih (Nat.le_of_succ_le hm)
+      let prev_p := forward_n rt m' p
+      cases rt prev_p.loc prev_p.dst with
+      | none =>
+        use j; simp [forward_step] at hj; simp [hj]
+      | some nxt =>
+        -- total_on_nodes applied to j gives a next index; need to find it
+        -- first show nodes j ≠ d (otherwise nxt irrelevant)
+        by_cases hjd : nodes j = d
+        · -- if nodes j = d then forward_step keeps dst and loc==d, so use j
+          use j; simp [hj, hjd]
+        · obtain ⟨jj, hrt⟩ := total_on_nodes j hjd
+          -- after step, location becomes nodes jj
+          use jj
+          simp [forward_step]
+          -- expand hj to rewrite prev_p.loc to nodes j then simplify
+          simp [hj] at hrt
+          simp [hj]
+          exact hrt.symm
+  -- handle bounded-hops result
+  cases H with
+  | inr heq => use k; constructor; exact hk; simp [heq]
+  | inl hnone =>
+    let q := forward_n rt k p
+    have hn : rt q.loc q.dst = none := hnone
+    obtain ⟨j, hj⟩ := locs_in_nodes k (by simp [hk])
+    -- nodes j ≠ d (otherwise heq would have held); get next via total_on_nodes and contradict
+    by_cases hjd : nodes j = d
+    · use k; constructor; exact hk; simp [hj, hjd]
+    · obtain ⟨jj, hrt⟩ := total_on_nodes j hjd
+      simp [hj] at hrt
+      simp [hrt] at hn
+      contradiction
