@@ -10,9 +10,10 @@ set -euo pipefail
 OUT_DIR="benchmarks"
 mkdir -p "${OUT_DIR}"
 
-TS=$(date -u +"%Y%m%dT%H%M%SZ")
+TS=$(date -u +"%Y%m%dT%H%M%S%N")
 HOST=$(hostname -s 2>/dev/null || echo "localhost")
-OUT_FILE="${OUT_DIR}/bench-${HOST}-${TS}.txt"
+# include PID to avoid filename collisions across very fast successive runs
+OUT_FILE="${OUT_DIR}/bench-${HOST}-${TS}-$${$}.txt"
 
 PROFILE=0
 if [ "${1-}" = "--pprof" ]; then
