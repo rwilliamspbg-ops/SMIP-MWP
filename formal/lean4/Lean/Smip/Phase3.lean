@@ -62,15 +62,48 @@ theorem ttl_reaches_zero (rt : RoutingTable) (p : Packet) :
 
 /- Definition (loop-freedom relative to TTL): there is no infinite forwarding
    sequence because TTL is strictly decreasing and bounded below by 0. -/
+
 theorem no_infinite_forwarding (rt : RoutingTable) (p : Packet) :
   ∃ n, (forward_n rt n p).ttl = 0 := by
   use p.ttl
   exact ttl_reaches_zero rt p
 
-/- Placeholder for a stronger property: routing loop-freedom independent of TTL.
-   That requires proving absence of cycles in the routing graph or that routing
-   strictly progresses along an acyclic metric. -/
-theorem routing_loop_free_stronger : True := by trivial
+/- Stronger routing loop-freedom when a numeric distance metric strictly
+  decreases at each hop (well-formed routing table).
+
+/- Graph model: neighbors function returning adjacency list for a node. -/
+abbrev Neighbors := Node → List Node
+
+/- pick_next searches the neighbors list for a neighbor with strictly
+  smaller distance to destination and returns the first such neighbor. -/
+partial def pick_next? (ns : List Node) (n d : Node) (dist : Distance) : Option Node :=
+  match ns with
+  | [] => none
+  | h::t => if dist h d < dist n d then some h else pick_next? t n d dist
+
+/- Build a routing table from neighbors by picking a next-hop that reduces
+  the distance if one exists. -/
+def build_rt (neighbors : Neighbors) (dist : Distance) : RoutingTable :=
+  fun n d => pick_next? (neighbors n) n d dist
+
+/- If `build_rt` yields `some next`, then by construction `dist next d < dist n d`.
+  This proves `routing_wf` for `build_rt`. -/
+theorem build_rt_wf (neighbors : Neighbors) (dist : Distance) :
+  routing_wf (build_rt neighbors dist) dist := by
+  intro n d next h
+  dsimp [build_rt] at h
+  -- unfold pick_next? via cases on `neighbors n`
+  have hn := neighbors n
+  generalize hn_val : neighbors n = hn
+  revert hn_val h
+  intro ns hn_val h
+  induction ns with
+  | nil => simp [pick_next?] at h; contradiction
+  | cons hd tl ih =>
+   simp [pick_next?] at h
+   by_cases c : dist hd d < dist n d
+   · simp [c] at h; injection h with h1; subst h1; exact c
+   · simp [c] at h; exact ih rfl h
 
 /- Stronger routing loop-freedom when a numeric distance metric strictly
    decreases at each hop (well-formed routing table).
@@ -192,43 +225,4 @@ theorem bounded_hops_to_none_or_dst {rt : RoutingTable} {dist : Distance}
           · exact hk
           · simp [q, heq, h]
 
-/- Graph model: neighbors function returning adjacency list for a node. -/
-abbrev Neighbors := Node → List Node
-
-/- pick_next searches the neighbors list for a neighbor with strictly
-   smaller distance to destination and returns the first such neighbor. -/
-partial def pick_next? (ns : List Node) (n d : Node) (dist : Distance) : Option Node :=
-  match ns with
-  | [] => none
-  | h::t => if dist h d < dist n d then some h else pick_next? t n d dist
-
-/- Build a routing table from neighbors by picking a next-hop that reduces
-   the distance if one exists. -/
-def build_rt (neighbors : Neighbors) (dist : Distance) : RoutingTable :=
-  fun n d => pick_next? (neighbors n) n d dist
-
-/- If `build_rt` yields `some next`, then by construction `dist next d < dist n d`.
-   This proves `routing_wf` for `build_rt`. -/
-theorem build_rt_wf (neighbors : Neighbors) (dist : Distance) :
-  routing_wf (build_rt neighbors dist) dist := by
-  intro n d next h
-  dsimp [build_rt] at h
-  -- unfold pick_next? via cases on neighbors n
-  generalize hn : neighbors n = ns
-  revert hn h
-  intro ns hn h
-  induction ns with
-  | nil =>
-    simp [pick_next?] at h
-    contradiction
-  | cons hd tl ih =>
-    simp [pick_next?]
-    by_cases c : dist hd d < dist n d
-    · simp [c] at h
-      injection h with h1
-      subst h1
-      exact c
-    · simp [c] at h
-      -- pick_next? delegated to tail
-      exact ih rfl h
 end Smip
