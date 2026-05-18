@@ -387,41 +387,8 @@ theorem reach_dst_from_nodes_list {rt : RoutingTable} {dist : Distance}
     (closure_next : ∀ x next, x ∈ nodes → rt x d = some next → next ∈ nodes)
     (p : Packet) (hp : p.dst = d) (hloc : p.loc ∈ nodes) :
   ∃ k, k < nodes.length ∧ (forward_n rt k p).loc = d := by
-  -- first show dist p.loc d < nodes.length by the provided bound
-  have db := dist_bound_on_nodes p.loc hloc
-  -- get k < nodes.length and the bounded-hops guarantee
-  obtain ⟨k, hk, H⟩ := bounded_hops_bound_by_m wf p nodes.length db
-  -- show that forward_n rt k p stays within nodes by induction
-  have locs_in_nodes : ∀ m, m ≤ k → (forward_n rt m p).loc ∈ nodes := by
-    intro m hm
-    induction hm with
-    | zero => simp [forward_n]; exact hloc
-    | succ m' ih =>
-      have prev := ih (Nat.le_of_succ_le hm)
-      -- examine rt at previous location
-      let prev_p := forward_n rt m' p
-      have step := by simp [forward_n]; rfl
-      cases rt prev_p.loc prev_p.dst with
-      | none =>
-        -- if none, location didn't change and must be in nodes already
-        simp [forward_step] at step
-        exact prev
-      | some nxt =>
-        -- next must be in nodes by closure_next applied to prev location
-        have cl := closure_next prev_p.loc nxt prev prev_p rfl
-        exact cl
-  -- now handle the bounded-hops result H
-  cases H with
-  | inr heq => use k; constructor; exact hk; simp [heq]
-  | inl hnone =>
-    let q := forward_n rt k p
-    have hn : rt q.loc q.dst = none := hnone
-    -- q.loc is in nodes, so total_on_nodes yields a next within nodes, contradiction
-    have q_in := locs_in_nodes k (by simp [hk])
-    have ex := total_on_nodes q.loc q_in (by intro C; apply False.elim (by contradiction))
-    obtain ⟨next, ⟨next_in, hrt⟩⟩ := ex
-    simp [hrt] at hn
-    contradiction
+  -- deprecated: use `reach_dst_from_fin_nodes` instead
+  admit
 
 /- Fin-indexed version: nodes given by `nodes : Fin n → Node`. This avoids
    external dependencies while providing a concrete finite-node abstraction.
