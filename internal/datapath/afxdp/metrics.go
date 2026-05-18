@@ -65,12 +65,28 @@ var (
 		Help:      "Per-worker packet batch processing latency in seconds",
 		Buckets:   prometheus.DefBuckets,
 	}, []string{"worker"})
+
+	// Adaptive fill metrics
+	fillEMA = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "smip_mwp",
+		Subsystem: "afxdp",
+		Name:      "fill_ema",
+		Help:      "Exponential moving average of completed descriptors per tick",
+	})
+
+	fillTarget = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "smip_mwp",
+		Subsystem: "afxdp",
+		Name:      "fill_target",
+		Help:      "Current desired UMEM fill target used by the adaptive algorithm",
+	})
 )
 
 func init() {
 	prometheus.MustRegister(rxPackets, txPackets, droppedPackets, handshakeCount, cryptoErrors)
 	prometheus.MustRegister(rxPacketsVec, txPacketsVec, droppedPacketsVec)
 	prometheus.MustRegister(processingLatency)
+	prometheus.MustRegister(fillEMA, fillTarget)
 	// Start background flusher to aggregate per-worker atomic counters into
 	// Prometheus metrics periodically. Interval kept short for CI/test feedback.
 	go func() {
@@ -175,4 +191,14 @@ func IncDroppedWorker(worker int, n int) {
 
 func ObserveProcessingLatency(worker int, seconds float64) {
 	processingLatency.WithLabelValues(fmt.Sprint(worker)).Observe(seconds)
+}
+
+// SetFillEMA sets the EMA metric for the adaptive fill controller.
+func SetFillEMA(v float64) {
+	fillEMA.Set(v)
+}
+
+// SetFillTarget sets the current fill target metric.
+func SetFillTarget(target int) {
+	fillTarget.Set(float64(target))
 }

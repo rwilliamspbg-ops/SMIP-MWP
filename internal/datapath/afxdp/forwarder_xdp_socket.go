@@ -1,5 +1,5 @@
-//go:build withafxdp
-// +build withafxdp
+//go:build withafxdp && !asavie
+// +build withafxdp,!asavie
 
 package afxdp
 
@@ -11,7 +11,21 @@ import (
 // This implementation provides a high-level abstraction that can be swapped
 // for real AF_XDP implementation when library APIs are available.
 type XDPSocket struct {
-	s *xdpSocketImpl // Mock implementation for now
+	s socketBackend
+}
+
+// socketBackend abstracts the backing socket implementation used by XDPSocket.
+// Both the mock `xdpSocketImpl` and the real `realSocketImpl` implement this.
+type socketBackend interface {
+	NumFreeFillSlots() int
+	GetDescs(n int) []*XDPDescriptor
+	Fill(descs []*XDPDescriptor)
+	Poll(maxEvents int) (int, int, error)
+	Receive(n int) []*XDPDescriptor
+	GetFrame(d *XDPDescriptor) []byte
+	Complete(n int)
+	Transmit(descs []*XDPDescriptor)
+	Close() error
 }
 
 // NewXDPSocket creates an AF_XDP socket bound to iface:queue.
@@ -24,14 +38,14 @@ func NewXDPSocket(iface string, queue int, umem *UMEM) (*XDPSocket, error) {
 		return nil, fmt.Errorf("umem required")
 	}
 
-	// Create mock socket for now (can be replaced with real AF_XDP later)
+	// Create mock socket backed by provided UMEM (simulates descriptors referencing UMEM frames)
 	sock := &XDPSocket{
 		s: &xdpSocketImpl{
-			descriptors: make([]*XDPDescriptor, 0),
-			fillIdx:     0,
-			rxIdx:       0,
-			txIdx:       0,
-			compIdx:     0,
+			umem:     umem,
+			fillRing: make([]*XDPDescriptor, 0),
+			rxRing:   make([]*XDPDescriptor, 0),
+			txRing:   make([]*XDPDescriptor, 0),
+			compRing: make([]*XDPDescriptor, 0),
 		},
 	}
 	return sock, nil

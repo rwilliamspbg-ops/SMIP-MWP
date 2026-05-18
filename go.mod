@@ -3,7 +3,7 @@ module smip-mwp
 go 1.25.0
 
 require (
-	github.com/asavie/xdp v0.3.0
+	github.com/asavie/xdp v0.3.3
 	github.com/prometheus/client_golang v1.16.0
 	golang.org/x/crypto v0.51.0
 )
@@ -11,7 +11,7 @@ require (
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/cilium/ebpf v0.3.0 // indirect
+	github.com/cilium/ebpf v0.4.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect

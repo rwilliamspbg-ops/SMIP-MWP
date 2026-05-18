@@ -19,6 +19,19 @@ type Config struct {
 	FrameSize  int
 	BatchSize  int
 	NumWorkers int // number of per-CPU workers / queues to spawn (0 -> NumCPU)
+	// FillThreshold controls how many descriptors we attempt to keep
+	// available on the UMEM Fill ring. If zero, defaults to BatchSize.
+	FillThreshold int
+	// Adaptive fill controls
+	// If true, dynamically adjust FillThreshold based on observed completion rate.
+	FillAdaptive bool
+	// Multiplicative factor applied to the observed completion rate to compute target fill.
+	FillAdaptFactor float64
+	// EMA alpha used to smooth observed completion rate (0..1). Higher alpha weights recent samples.
+	FillEMAAlpha float64
+	// Minimum and maximum allowed fill target when adaptive mode is enabled.
+	FillMin int
+	FillMax int
 }
 
 // Session represents a lightweight session placeholder.

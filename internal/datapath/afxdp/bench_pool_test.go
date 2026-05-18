@@ -17,12 +17,13 @@ func BenchmarkPacketAllocate(b *testing.B) {
 // BenchmarkPacketPool measures using a sync.Pool to reuse packet buffers.
 func BenchmarkPacketPool(b *testing.B) {
 	size := 2048
-	pool := &sync.Pool{New: func() interface{} { return make([]byte, size) }}
+	pool := &sync.Pool{New: func() interface{} { buf := make([]byte, size); return &buf }}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		pkt := pool.Get().([]byte)
+		pktPtr := pool.Get().(*[]byte)
+		pkt := *pktPtr
 		// use packet
 		_ = pkt
-		pool.Put(pkt)
+		pool.Put(pktPtr)
 	}
 }

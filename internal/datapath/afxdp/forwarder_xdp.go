@@ -35,7 +35,7 @@ func NewForwarder(cfg Config, routeTable *routing.Table) (*Forwarder, error) {
 	if size <= 0 {
 		size = 2048
 	}
-	f.pktPool = &sync.Pool{New: func() interface{} { return make([]byte, size) }}
+	f.pktPool = &sync.Pool{New: func() interface{} { b := make([]byte, size); return &b }}
 	f.logger.Printf("afxdp: xdp-mode forwarder initialized iface=%s zeroCopy=%v", cfg.Interface, cfg.ZeroCopy)
 
 	// Initialize UMEM

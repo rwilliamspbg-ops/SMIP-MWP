@@ -1,0 +1,11 @@
+[Unit]
+Description=SMIP-MWP XDP Runner bootstrap
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/setup_xdp_runner.sh
+
+[Install]
+WantedBy=multi-user.target

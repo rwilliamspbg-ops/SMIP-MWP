@@ -1,0 +1,70 @@
+name: Asavie XDP Integration (self-hosted)
+
+on:
+  workflow_dispatch:
+    inputs:
+      iface:
+        description: 'Network interface to use for XDP (e.g., eth0)'
+        required: true
+      experiments:
+        description: 'Run experiment sweep (baseline/throughput/lowlat)'
+        required: false
+        default: 'false'
+      run_bench:
+        description: 'Run benchmark harness after integration test (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  run-integration:
+    name: Run Asavie/XDP Integration
+    runs-on: [self-hosted, xdp-runner]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            $(go env GOPATH)/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Install deps
+        run: go mod download
+
+      - name: Run asavie integration or experiments
+        env:
+          XDP_IFACE: ${{ inputs.iface }}
+        run: |
+          chmod +x ./scripts/run_asavie_integration.sh
+          chmod +x ./scripts/run_experiments.sh || true
+          if [ "${{ inputs.experiments }}" = "true" ]; then
+            echo "Running experiments sweep"
+            ./scripts/run_experiments.sh
+          else
+            export RUN_XDP_INTEGRATION=1
+            export RUN_BENCH=${{ inputs.run_bench }}
+            ./scripts/run_asavie_integration.sh
+          fi
+
+      - name: Install graphviz & generate flamegraphs
+        if: ${{ inputs.run_bench == 'true' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+          chmod +x ./scripts/process_benchmarks.sh
+          ./scripts/process_benchmarks.sh
+
+      - name: Upload artifacts (benchmarks)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asavie-benchmarks
+          path: benchmarks/**
