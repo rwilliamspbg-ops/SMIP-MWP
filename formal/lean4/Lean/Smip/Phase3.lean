@@ -358,6 +358,51 @@ theorem fmap_lookup_build_rt_eq (nodes : List Node) (neighbors : Neighbors)
         apply ih
         simp at hx; exact hx
 
+/-- Build a list of `Fin n` values: 0,1,...,n-1 -/
+def fin_range : (n : Nat) → List (Fin n)
+  | 0 => []
+  | Nat.succ k =>
+    let tail := fin_range k
+    let shifted := tail.map (fun i => ⟨i.val + 1, by simp [i.isLt] at i; exact Nat.succ_lt_succ i.isLt⟩)
+    ⟨0, by simp⟩ :: shifted
+
+/-- Build an FMap from a `Fin`-indexed `nodes_fin`. -/
+def build_fmap_from_fin {n : Nat} (nodes_fin : Fin n → Node)
+    (neighbors : Neighbors) (dist : Distance) (d : Node) : FMap :=
+  (fin_range n).foldl
+    (fun acc i =>
+      match pick_next? (neighbors (nodes_fin i)) (nodes_fin i) d dist with
+      | none => acc
+      | some nxt => (nodes_fin i, nxt) :: acc)
+    []
+
+/-- The Fin-based fmap builder produces the same FMap as the list-based
+    builder when `nodes_fin` is derived from `nodes`. -/
+theorem build_fmap_from_fin_eq_list (nodes : List Node) (neighbors : Neighbors)
+    (dist : Distance) (d : Node) :
+  let n := nodes.length
+  let nodes_fin : Fin n → Node := fun i => (nodes.get? i.val).getD 0
+  build_fmap_for_dest nodes neighbors dist d = build_fmap_from_fin nodes_fin neighbors dist d := by
+  induction nodes with
+  | nil => simp [build_fmap_for_dest, build_fmap_from_fin, fin_range]
+  | cons hd tl ih =>
+    simp [build_fmap_for_dest]
+    -- expand fin_range for `nodes.length` and compare
+    let n := (hd :: tl).length
+    have : fin_range n = ⟨0, by simp⟩ :: (fin_range tl.length).map (fun i => ⟨i.val + 1, by simp [i.isLt]; exact Nat.succ_lt_succ i.isLt⟩) := by simp [fin_range]
+    simp [this]
+    -- analyze pick_next? for head and recurse on tail
+    by_cases c : pick_next? (neighbors hd) hd d dist
+    · simp [c]
+      -- head case either adds a pair or not; show both sides match and apply IH
+      have := ih
+      simp [build_fmap_from_fin] at this
+      exact congrArg (fun x => if c then (hd, _) :: x else x) this
+    · simp [c]
+      have := ih
+      simp [build_fmap_from_fin] at this
+      exact this
+
 
 end Smip
 
