@@ -530,6 +530,33 @@ theorem reach_dst_from_nodes_list {rt : RoutingTable} {dist : Distance}
         simp [this] at rec
         exact rec
 
+  /-- Under `NoDup xs`, the numeric index (`.val`) produced by
+      `list_index_of` is unique regardless of the membership proof. -/
+  theorem list_index_of_val_unique {xs : List Node} (nd : xs.Nodup) {x : Node}
+      (h1 h2 : x ∈ xs) :
+    (list_index_of xs x h1).val = (list_index_of xs x h2).val := by
+    induction xs generalizing nd with
+    | nil => simp at h1; contradiction
+    | cons hd tl ih =>
+      cases nd with
+      | cons nd_hd nd_tl =>
+        simp [list_index_of]
+        by_cases heq : x = hd
+        · subst heq; simp
+        · have xin1 : x ∈ tl := by simp [heq] at h1; exact h1
+          have xin2 : x ∈ tl := by simp [heq] at h2; exact h2
+          have rec := ih nd_tl xin1 xin2
+          exact congrArg (fun n => n + 1) rec
+
+  /-- When `xs` has no duplicates, the `Fin` produced is unique (indexes equal). -/
+  theorem list_index_of_unique {xs : List Node} (nd : xs.Nodup) {x : Node}
+      (h1 h2 : x ∈ xs) :
+    list_index_of xs x h1 = list_index_of xs x h2 := by
+    have val_eq := list_index_of_val_unique nd h1 h2
+    -- equality of `Fin` values follows from equality of their `.val` fields
+    apply Fin.eq_of_val_eq
+    exact val_eq
+
   -- Build a `Fin n → Node` mapping from the `nodes : List Node` by using
   -- `List.get?` with a safe default (the default is never used when index is
   -- valid because `i.val < nodes.length`).
