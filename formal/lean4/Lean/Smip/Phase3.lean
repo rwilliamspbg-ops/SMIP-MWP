@@ -276,6 +276,34 @@ theorem bounded_hops_bound_by_m {rt : RoutingTable} {dist : Distance}
   · exact klt
   · exact H
 
+/- If `dist` is globally bounded by `n` for the destination `d` and `rt` is
+   total toward `d`, then any packet destined for `d` reaches `d` within
+   fewer than `n` hops. -/
+theorem reach_dst_finite_nodes {rt : RoutingTable} {dist : Distance}
+    (wf : routing_wf rt dist) {d : Node} (n : Nat)
+    (dist_bound : ∀ x, dist x d < n)
+    (total : ∀ x, x ≠ d → ∃ next, rt x d = some next)
+    (p : Packet) (hp : p.dst = d) :
+  ∃ k, k < n ∧ (forward_n rt k p).loc = d := by
+  -- apply bounded_hops_bound_by_m with m = n
+  have h0 : dist p.loc p.dst < n := by
+    simp [hp]
+    apply dist_bound
+  obtain ⟨k, hk, H⟩ := bounded_hops_bound_by_m wf p n h0
+  cases H with
+  | inr heq =>
+    use k; constructor; exact hk; simp [heq]
+  | inl hnone =>
+    let q := forward_n rt k p
+    have hn : rt q.loc q.dst = none := hnone
+    by_cases hq : q.loc = d
+    · use k; constructor; exact hk; simp [hq]
+    · -- q.loc ≠ d, but `total` gives a next-hop, contradicting `none`
+      have ex := total q.loc (by intro Contra; apply hq; exact Contra.symm)
+      obtain ⟨next, hnex⟩ := ex
+      simp [hnex] at hn
+      contradiction
+
 end Smip
 
 /- No cycles under `routing_wf`: following next-hops strictly decreases `dist`,
