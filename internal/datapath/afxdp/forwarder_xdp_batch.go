@@ -87,11 +87,14 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 					target = f.cfg.FillMax
 				}
 				desired = target
+				// export metrics for visibility
+				SetFillTarget(desired)
 			} else {
 				desired = f.cfg.FillThreshold
 				if desired <= 0 {
 					desired = batchSize
 				}
+				SetFillTarget(desired)
 			}
 			if desired > free {
 				desired = free
@@ -119,6 +122,7 @@ func (f *Forwarder) RunXDPBatchLoop(ctx context.Context, sock *XDPSocket, umem *
 		// Update EMA with recent completions for adaptive fill control
 		if f.cfg.FillAdaptive {
 			emaCompleted = alpha*float64(numCompleted) + (1.0-alpha)*emaCompleted
+			SetFillEMA(emaCompleted)
 		}
 
 		if numRx == 0 {
