@@ -75,10 +75,14 @@ func BenchmarkDecryptInPlace(b *testing.B) {
 		nonces[i] = nonce
 	}
 
+	// allocate a reusable scratch buffer to avoid per-iteration allocations
+	// while also preserving the original ciphertexts in `cts`.
+	scratch := make([]byte, len(cts[0]))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		idx := i % len(cts)
-		if _, err := sess.DecryptInPlace(cts[idx], nonces[idx]); err != nil {
+		copy(scratch, cts[idx])
+		if _, err := sess.DecryptInPlace(scratch, nonces[idx]); err != nil {
 			b.Fatalf("decrypt inplace: %v", err)
 		}
 	}
