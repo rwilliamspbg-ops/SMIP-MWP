@@ -20,10 +20,10 @@ jobs:
       - name: Setup Lean toolchain
         run: |
           elan default leanprover/lean4:stable
-      - name: Install lake
+      - name: Check lake availability via elan
         run: |
-          leanpkg configure
+          elan run lake --version
       - name: Build with lake
         working-directory: formal/lean4
         run: |
-          lake build
+          elan run lake build

@@ -33,3 +33,4 @@ How to contribute proofs
 - Use `#check` and `#eval` in files for quick experiments in the VS Code Lean REPL.
 
 <!-- CI retrigger: minor edit to trigger workflow -->
+<!-- CI retrigger: second touch to pick up workflow changes -->
