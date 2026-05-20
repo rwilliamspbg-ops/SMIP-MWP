@@ -415,6 +415,22 @@ func (s *HybridSession) EncryptInPlace(payload []byte, seq uint64) error {
 	return nil
 }
 
+// EncryptTo encrypts plaintext into dst and returns ciphertext+tag written to dst.
+//
+// dst must have capacity for len(plaintext)+TagSize.
+func (s *HybridSession) EncryptTo(dst, plaintext []byte, seq uint64) ([]byte, error) {
+	if len(plaintext) > (1 << 24) {
+		return nil, ErrPayloadTooLarge
+	}
+	if cap(dst) < len(plaintext)+TagSize {
+		return nil, ErrInsufficientCapacity
+	}
+	out := dst[:len(plaintext)+TagSize]
+	nonce := s.buildNonce(seq)
+	s.aead.Seal(out[:0], nonce, plaintext, nil)
+	return out, nil
+}
+
 // DecryptInPlace decrypts and authenticates in-place (removes tag, returns plaintext slice).
 func (s *HybridSession) DecryptInPlace(payload []byte, seq uint64) ([]byte, error) {
 	if len(payload) < TagSize {

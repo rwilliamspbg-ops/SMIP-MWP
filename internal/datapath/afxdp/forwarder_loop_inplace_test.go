@@ -69,7 +69,10 @@ func TestRunXDPLoop_InPlaceEncryptDecrypt(t *testing.T) {
 
 	// expect sent packet
 	select {
-	case sent := <-sock.sent:
+	case <-sock.sentSignal:
+		sock.mu.Lock()
+		sent := sock.lastSent
+		sock.mu.Unlock()
 		if len(sent) != 1 {
 			t.Fatalf("expected 1 sent pkt, got %d", len(sent))
 		}
