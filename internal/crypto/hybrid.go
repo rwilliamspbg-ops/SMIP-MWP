@@ -23,6 +23,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"os"
 	"runtime"
@@ -61,6 +62,11 @@ var (
 // sharded LRU to bound memory use. The shard count can be configured with
 // the `HKDF_CACHE_SHARDS` environment variable for benchmarking/tuning.
 var hkdfCache = newHKDFCache(runtime.NumCPU(), MaxHKDFCacheSize)
+
+// sha256Pool provides reusable hashers to avoid repeated allocations for short-lived
+// sha256 hash computations (e.g., deriveCacheKey). Hashers obtained from the pool
+// must be Reset() before reuse and are returned to the pool after use.
+var sha256Pool = sync.Pool{New: func() any { return sha256.New() }}
 
 type hkdfCacheType struct {
 	inner *shardedLRU
@@ -198,12 +204,28 @@ func newLRUCache(maxSize int) *lruCache {
 	if maxSize < 1 {
 		maxSize = 1
 	}
+	// Try to reuse an lruCache from the pool to avoid repeated allocations in benchmarks
+	if v := lruCachePool.Get(); v != nil {
+		if c, ok := v.(*lruCache); ok {
+			// reset internal state
+			c.mu.Lock()
+			c.cache = make(map[[32]byte]*list.Element, maxSize)
+			c.order = list.New()
+			c.maxSize = maxSize
+			c.mu.Unlock()
+			return c
+		}
+	}
 	return &lruCache{
 		cache:   make(map[[32]byte]*list.Element, maxSize),
 		order:   list.New(),
 		maxSize: maxSize,
 	}
 }
+
+// lruCachePool holds recycled *lruCache objects to reduce allocations in heavy
+// benchmark/test workloads. Returned caches are reinitialized by callers.
+var lruCachePool = sync.Pool{New: func() any { return &lruCache{} }}
 
 func (c *lruCache) Get(key [32]byte) (hkdfCacheEntry, bool) {
 	if c == nil {
@@ -255,11 +277,18 @@ func (c *lruCache) Len() int {
 }
 
 func deriveCacheKey(combinedSecret, sessionInfo []byte) [32]byte {
-	h := sha256.New()
+	// Use pooled sha256 hasher to avoid allocating a new hasher and result slice.
+	v := sha256Pool.Get()
+	h := v.(hash.Hash)
+	defer func() {
+		h.Reset()
+		sha256Pool.Put(h)
+	}()
 	_, _ = h.Write(combinedSecret)
 	_, _ = h.Write(sessionInfo)
 	var key [32]byte
-	copy(key[:], h.Sum(nil))
+	// Sum appends to the provided slice; use zero-length backing array to avoid alloc.
+	copy(key[:], h.Sum(key[:0]))
 	return key
 }
 

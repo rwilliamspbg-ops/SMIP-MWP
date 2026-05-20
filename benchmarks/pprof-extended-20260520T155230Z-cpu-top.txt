@@ -1,0 +1,107 @@
+File: afxdp.test
+Build ID: 9beef1a7c686d846f6037cb99a137fdd8e8eddd2
+Type: cpu
+Time: 2026-05-20 15:52:30 UTC
+Duration: 128.14s, Total samples = 150.37s (117.35%)
+Showing nodes accounting for 136.16s, 90.55% of 150.37s total
+Dropped 155 nodes (cum <= 0.75s)
+      flat  flat%   sum%        cum   cum%
+    14.86s  9.88%  9.88%     17.42s 11.58%  runtime.unlock2
+    13.98s  9.30% 19.18%     39.77s 26.45%  runtime.selectgo
+    12.25s  8.15% 27.33%     12.25s  8.15%  runtime.nanotime (inline)
+     6.67s  4.44% 31.76%      7.19s  4.78%  runtime.lock2
+     6.59s  4.38% 36.14%      6.59s  4.38%  runtime.futex
+     4.47s  2.97% 39.12%     63.17s 42.01%  smip-mwp/internal/datapath/afxdp.(*Forwarder).RunXDPLoop
+     4.14s  2.75% 41.87%      4.14s  2.75%  runtime.usleep
+     3.96s  2.63% 44.50%      7.83s  5.21%  sync.(*Pool).Get
+     3.85s  2.56% 47.06%      6.14s  4.08%  runtime.sellock
+     3.53s  2.35% 49.41%      4.65s  3.09%  sync.runtime_procPin
+     3.13s  2.08% 51.49%      7.44s  4.95%  sync.(*Pool).Put
+     2.78s  1.85% 53.34%         4s  2.66%  smip-mwp/internal/wire.ParseHeader
+     2.68s  1.78% 55.12%      7.35s  4.89%  sync.(*Pool).pin
+     2.56s  1.70% 56.83%      2.56s  1.70%  crypto/internal/fips140/aes/gcm.gcmAesEnc
+     2.39s  1.59% 58.42%      2.39s  1.59%  runtime.(*mLockProfile).store (inline)
+     2.35s  1.56% 59.98%      8.65s  5.75%  runtime.(*timer).unlock (inline)
+     2.33s  1.55% 61.53%      9.03s  6.01%  smip-mwp/internal/datapath/afxdp.PrepareForPacket
+     2.18s  1.45% 62.98%      2.44s  1.62%  runtime.acquireSudog
+     1.87s  1.24% 64.22%      3.60s  2.39%  smip-mwp/internal/routing.(*Table).LookupNextHop
+     1.86s  1.24% 65.46%      6.33s  4.21%  runtime.(*timer).modify
+     1.71s  1.14% 66.60%      4.86s  3.23%  runtime.casgstatus
+     1.41s  0.94% 67.53%      1.41s  0.94%  internal/runtime/atomic.(*Uint32).CompareAndSwap (inline)
+     1.35s   0.9% 68.43%      1.35s   0.9%  github.com/prometheus/client_golang/prometheus.(*counter).Add
+     1.29s  0.86% 69.29%     16.57s 11.02%  smip-mwp/internal/datapath/afxdp.BenchmarkPacketPool
+     1.27s  0.84% 70.13%      1.27s  0.84%  runtime.releasem (inline)
+     1.23s  0.82% 70.95%     15.43s 10.26%  runtime.findRunnable
+     1.21s   0.8% 71.76%     22.06s 14.67%  runtime.schedule
+     1.14s  0.76% 72.51%      1.14s  0.76%  runtime.(*m).clearAllpSnapshot
+     1.12s  0.74% 73.26%      1.12s  0.74%  runtime.procPin (inline)
+     1.09s  0.72% 73.98%      2.40s  1.60%  runtime.releaseSudog
+     1.06s   0.7% 74.69%      6.22s  4.14%  runtime.(*timer).stop
+     1.02s  0.68% 75.37%      8.25s  5.49%  runtime.systemstack
+     1.01s  0.67% 76.04%     31.22s 20.76%  smip-mwp/internal/datapath/afxdp.(*testSocket).Poll
+     0.96s  0.64% 76.68%      0.96s  0.64%  crypto/internal/fips140/aes.encryptBlockAsm
+     0.95s  0.63% 77.31%      4.55s  3.03%  smip-mwp/internal/routing.(*Table).LookupOrPredict
+     0.94s  0.63% 77.93%      0.94s  0.63%  runtime.(*guintptr).cas (inline)
+     0.92s  0.61% 78.55%     29.42s 19.57%  runtime.park_m
+     0.92s  0.61% 79.16%      0.92s  0.61%  sync/atomic.(*Int32).Add (inline)
+     0.89s  0.59% 79.75%      1.21s   0.8%  runtime.(*waitq).dequeue (inline)
+     0.89s  0.59% 80.34%      3.95s  2.63%  runtime.selunlock
+     0.86s  0.57% 80.91%      3.05s  2.03%  runtime.execute
+     0.84s  0.56% 81.47%     13.49s  8.97%  runtime.chansend
+     0.82s  0.55% 82.02%      0.82s  0.55%  runtime.memmove
+     0.80s  0.53% 82.55%      0.80s  0.53%  runtime.(*maybeTraceablePtr).set (inline)
+     0.80s  0.53% 83.08%      0.83s  0.55%  sync.runtime_procUnpin
+     0.71s  0.47% 83.55%      0.96s  0.64%  runtime.gopark
+     0.69s  0.46% 84.01%     11.08s  7.37%  runtime.send
+     0.68s  0.45% 84.46%      4.87s  3.24%  runtime.selparkcommit
+     0.66s  0.44% 84.90%      3.75s  2.49%  runtime.blockTimerChan
+     0.53s  0.35% 85.26%      6.89s  4.58%  runtime.ready
+     0.52s  0.35% 85.60%      3.48s  2.31%  runtime.unblockTimerChan
+     0.44s  0.29% 85.89%      7.58s  5.04%  runtime.selectnbsend
+     0.42s  0.28% 86.17%      4.14s  2.75%  runtime.(*timers).check
+     0.40s  0.27% 86.44%     29.83s 19.84%  runtime.mcall
+     0.36s  0.24% 86.68%     13.10s  8.71%  smip-mwp/internal/datapath/afxdp.BenchmarkRunXDPLoop_NoCrypto
+     0.34s  0.23% 86.91%      4.54s  3.02%  runtime.runqgrab
+     0.32s  0.21% 87.12%      5.22s  3.47%  runtime.stealWork
+     0.32s  0.21% 87.33%      6.84s  4.55%  time.(*Timer).Stop (inline)
+     0.30s   0.2% 87.53%     13.69s  9.10%  smip-mwp/internal/datapath/afxdp.BenchmarkRunXDPLoop_MultiWorker_WithCrypto
+     0.30s   0.2% 87.73%     14.05s  9.34%  time.(*Timer).Reset
+     0.30s   0.2% 87.93%      6.52s  4.34%  time.stopTimer
+     0.29s  0.19% 88.12%      4.81s  3.20%  runtime.wakep
+     0.28s  0.19% 88.31%      0.77s  0.51%  runtime.runqput
+     0.28s  0.19% 88.50%      7.17s  4.77%  runtime.send.goready.func1
+     0.28s  0.19% 88.68%      8.27s  5.50%  smip-mwp/internal/datapath/afxdp.(*testSocket).Send
+     0.27s  0.18% 88.86%      7.71s  5.13%  runtime.goready (inline)
+     0.23s  0.15% 89.01%     11.95s  7.95%  smip-mwp/internal/datapath/afxdp.BenchmarkRunXDPLoop_WithCrypto
+     0.22s  0.15% 89.16%      4.34s  2.89%  crypto/internal/fips140/aes/gcm.seal
+     0.20s  0.13% 89.29%      2.03s  1.35%  runtime.chansend.func1
+     0.20s  0.13% 89.43%      7.31s  4.86%  time.when
+     0.19s  0.13% 89.55%      0.76s  0.51%  smip-mwp/internal/datapath/afxdp.IncRx (inline)
+     0.17s  0.11% 89.67%      1.23s  0.82%  runtime.mapaccess2
+     0.14s 0.093% 89.76%      1.01s  0.67%  smip-mwp/internal/datapath/afxdp.(*Forwarder).GetSession
+     0.13s 0.086% 89.85%      0.91s  0.61%  smip-mwp/internal/datapath/afxdp.IncTx (inline)
+     0.11s 0.073% 89.92%      6.46s  4.30%  runtime.chansend1
+     0.09s  0.06% 89.98%      4.56s  3.03%  crypto/internal/fips140/aes/gcm.(*GCM).Seal
+     0.09s  0.06% 90.04%      7.11s  4.73%  time.runtimeNano
+     0.08s 0.053% 90.09%      4.45s  2.96%  crypto/internal/fips140/aes/gcm.(*GCM).sealAfterIndicator
+     0.08s 0.053% 90.14%      3.98s  2.65%  runtime.notewakeup
+     0.07s 0.047% 90.19%      1.03s  0.68%  crypto/internal/fips140/aes.encryptBlock
+     0.06s  0.04% 90.23%      6.39s  4.25%  runtime.(*timer).reset (inline)
+     0.06s  0.04% 90.27%     17.54s 11.66%  runtime.unlock (inline)
+     0.06s  0.04% 90.31%     17.48s 11.62%  runtime.unlockWithRank (inline)
+     0.05s 0.033% 90.34%      4.89s  3.25%  smip-mwp/internal/crypto.(*HybridSession).EncryptInPlace
+     0.05s 0.033% 90.38%      6.44s  4.28%  time.resetTimer
+     0.04s 0.027% 90.40%      2.76s  1.84%  runtime.futexsleep
+     0.04s 0.027% 90.43%      7.23s  4.81%  runtime.lock (inline)
+     0.04s 0.027% 90.46%      4.58s  3.05%  runtime.runqsteal
+     0.03s  0.02% 90.48%      3.90s  2.59%  runtime.futexwakeup
+     0.03s  0.02% 90.50%      2.79s  1.86%  runtime.notesleep
+     0.02s 0.013% 90.51%      1.05s   0.7%  crypto/internal/fips140/aes.EncryptBlockInternal (inline)
+     0.02s 0.013% 90.52%      2.35s  1.56%  runtime.(*timer).lock (inline)
+     0.02s 0.013% 90.54%      3.05s  2.03%  runtime.stopm
+     0.01s 0.0067% 90.54%      1.34s  0.89%  runtime.resetspinning
+     0.01s 0.0067% 90.55%      4.06s  2.70%  runtime.startm
+         0     0% 90.55%      7.19s  4.78%  runtime.lockWithRank (inline)
+         0     0% 90.55%      2.79s  1.86%  runtime.mPark (inline)
+         0     0% 90.55%     55.73s 37.06%  testing.(*B).launch
+         0     0% 90.55%     55.73s 37.06%  testing.(*B).runN
