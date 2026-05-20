@@ -39,7 +39,6 @@ CPU_START=2
 LAUNCH_CMD=""
 PIN_RANGE=""
 LOGFILE="benchmarks/mohawk-node.log"
-irq_nums=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

@@ -61,14 +61,6 @@ func BenchmarkRunXDPLoop_WithCrypto(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go fwd.RunXDPLoop(ctx, sock, umem)
-	waitT := time.NewTimer(5 * time.Second)
-	if !waitT.Stop() {
-		select {
-		case <-waitT.C:
-		default:
-		}
-	}
-	defer waitT.Stop()
 
 	// send frames in loop (b.N controlled by -benchtime)
 	b.ResetTimer()
@@ -77,16 +69,10 @@ func BenchmarkRunXDPLoop_WithCrypto(b *testing.B) {
 		h.SeqNum = uint64(i)
 		_ = h.Marshal(buf)
 		sock.frames <- buf
-		waitT.Reset(5 * time.Second)
 		select {
-		case <-sock.sentSignal:
-			if !waitT.Stop() {
-				select {
-				case <-waitT.C:
-				default:
-				}
-			}
-		case <-waitT.C:
+		case <-sock.sent:
+			// ok
+		case <-time.After(5 * time.Second):
 			b.Fatalf("timed out waiting for send")
 		}
 	}
@@ -137,44 +123,23 @@ func BenchmarkRunXDPLoop_MultiWorker_WithCrypto(b *testing.B) {
 		go fwd.RunXDPLoop(ctx, sock, um)
 	}
 
-	// prepare frame buffer — set Src/Dst to match per-worker routes so
-	// LookupNextHop returns an exact match and avoids predictive allocations.
+	// prepare frame buffer
 	payload := []byte("benchmark-payload-abcdefgh")
-	var src, dst [32]byte
-	copy(src[:], []byte("bench-src-000000000000000000000000"))
-	copy(dst[:], []byte("bench-dst-000000000000000000000000"))
-	h := wire.Header{SrcID: src, DstID: dst, FlowLabel: 0x3, Length: uint16(len(payload))}
-	// Allocate frame with extra capacity for AEAD tag so workers can use in-place
-	// encryption and avoid fallback allocations.
-	frame := make([]byte, wire.HeaderSize+int(h.Length), wire.HeaderSize+int(h.Length)+crypto.TagSize)
+	h := wire.Header{FlowLabel: 0x3, Length: uint16(len(payload))}
+	frame := wire.NewHeaderBuffer(int(h.Length))
 	if err := h.Marshal(frame); err != nil {
 		b.Fatalf("marshal: %v", err)
 	}
 	copy(frame[wire.HeaderSize:], payload)
-	waitT := time.NewTimer(5 * time.Second)
-	if !waitT.Stop() {
-		select {
-		case <-waitT.C:
-		default:
-		}
-	}
-	defer waitT.Stop()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// round-robin send to workers
 		w := i % workers
 		socks[w].frames <- frame
-		waitT.Reset(5 * time.Second)
 		select {
-		case <-socks[w].sentSignal:
-			if !waitT.Stop() {
-				select {
-				case <-waitT.C:
-				default:
-				}
-			}
-		case <-waitT.C:
+		case <-socks[w].sent:
+		case <-time.After(5 * time.Second):
 			b.Fatalf("timed out waiting for send")
 		}
 	}

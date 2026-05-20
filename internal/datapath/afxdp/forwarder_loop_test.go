@@ -24,75 +24,29 @@ type testSocket struct {
 	frames chan []byte
 	sent   chan [][]byte
 	mu     sync.Mutex
-	pollT  *time.Timer
-	pollB  [][]byte
-	// lastSent holds the most recent packet batch for inspection by tests.
-	lastSent   [][]byte
-	sentSignal chan struct{}
 }
 
 func newTestSocket() *testSocket {
-	t := time.NewTimer(200 * time.Millisecond)
-	if !t.Stop() {
-		select {
-		case <-t.C:
-		default:
-		}
-	}
-	return &testSocket{frames: make(chan []byte, 4), sent: make(chan [][]byte, 4), pollT: t, pollB: make([][]byte, 1), sentSignal: make(chan struct{}, 1)}
+	return &testSocket{frames: make(chan []byte, 4), sent: make(chan [][]byte, 4)}
 }
 
 func (s *testSocket) Poll(max int) ([][]byte, error) {
-	s.mu.Lock()
-	s.pollT.Reset(200 * time.Millisecond)
-	s.mu.Unlock()
-
 	select {
 	case b := <-s.frames:
-		s.mu.Lock()
-		if !s.pollT.Stop() {
-			select {
-			case <-s.pollT.C:
-			default:
-			}
-		}
-		s.pollB[0] = b
-		s.mu.Unlock()
-		return s.pollB, nil
-	case <-s.pollT.C:
+		return [][]byte{b}, nil
+	case <-time.After(200 * time.Millisecond):
 		return nil, nil
 	}
 }
 
 func (s *testSocket) Send(pkts [][]byte) error {
 	s.mu.Lock()
-	// record last sent batch for test inspection
-	s.lastSent = pkts
-	s.mu.Unlock()
-	// notify any waiter without blocking (benchmarks use sentSignal)
-	select {
-	case s.sentSignal <- struct{}{}:
-	default:
-	}
-	// also deliver on the older sent channel for tests that read it; do not block
-	select {
-	case s.sent <- pkts:
-	default:
-	}
+	defer s.mu.Unlock()
+	s.sent <- pkts
 	return nil
 }
 
-func (s *testSocket) Close() error {
-	s.mu.Lock()
-	if s.pollT != nil {
-		s.pollT.Stop()
-	}
-	s.mu.Unlock()
-	close(s.frames)
-	close(s.sent)
-	close(s.sentSignal)
-	return nil
-}
+func (s *testSocket) Close() error { close(s.frames); close(s.sent); return nil }
 
 type testUMEM struct{ closed bool }
 
@@ -130,10 +84,7 @@ func TestRunXDPLoop_SendsReceivedPackets(t *testing.T) {
 
 	// Expect a send within a short time
 	select {
-	case <-sock.sentSignal:
-		sock.mu.Lock()
-		sent := sock.lastSent
-		sock.mu.Unlock()
+	case sent := <-sock.sent:
 		if len(sent) != 1 {
 			t.Fatalf("unexpected sent count: %d", len(sent))
 		}

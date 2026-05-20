@@ -42,28 +42,14 @@ func BenchmarkRunXDPLoop_NoCrypto(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go fwd.RunXDPLoop(ctx, sock, umem)
-	waitT := time.NewTimer(2 * time.Second)
-	if !waitT.Stop() {
-		select {
-		case <-waitT.C:
-		default:
-		}
-	}
-	defer waitT.Stop()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		sock.frames <- buf
-		waitT.Reset(2 * time.Second)
 		select {
-		case <-sock.sentSignal:
-			if !waitT.Stop() {
-				select {
-				case <-waitT.C:
-				default:
-				}
-			}
-		case <-waitT.C:
+		case <-sock.sent:
+			// ok
+		case <-time.After(2 * time.Second):
 			b.Fatalf("timed out waiting for send")
 		}
 	}

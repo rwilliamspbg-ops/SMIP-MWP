@@ -16,25 +16,19 @@ type MultiQueueForwarder struct {
 	wg         sync.WaitGroup
 }
 
-type ForwarderStats struct {
-	RxPackets uint64
-	TxPackets uint64
-	Dropped   uint64
-}
-
 func NewMultiQueueForwarder(cfg Config, rt interface{}) (*MultiQueueForwarder, error) {
 	// Auto-detect NIC queue count
 	numQueues := cfg.NumWorkers
 	if numQueues == 0 {
 		numQueues = runtime.NumCPU()
 	}
-
+	
 	forwarders := make([]*Forwarder, numQueues)
 	for i := 0; i < numQueues; i++ {
 		fwd := &Forwarder{cfg: cfg}
 		forwarders[i] = fwd
 	}
-
+	
 	return &MultiQueueForwarder{forwarders: forwarders, config: cfg}, nil
 }
 
@@ -52,12 +46,9 @@ func (m *MultiQueueForwarder) Run(ctx context.Context) error {
 }
 
 func (m *MultiQueueForwarder) GetStats() ForwarderStats {
-	var total ForwarderStats
+	var total rxPackets uint64
 	for _, fwd := range m.forwarders {
-		rx, tx, dropped := fwd.GetStats()
-		total.RxPackets += rx
-		total.TxPackets += tx
-		total.Dropped += dropped
+		total += fwd.stats.Load()
 	}
-	return total
+	return rxPackets: total
 }
