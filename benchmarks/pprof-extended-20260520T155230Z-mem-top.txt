@@ -1,0 +1,61 @@
+File: afxdp.test
+Build ID: 9beef1a7c686d846f6037cb99a137fdd8e8eddd2
+Type: alloc_space
+Time: 2026-05-20 15:54:39 UTC
+Showing nodes accounting for 10005.49kB, 100% of 10005.49kB total
+      flat  flat%   sum%        cum   cum%
+ 1536.24kB 15.35% 15.35%  1536.24kB 15.35%  runtime/pprof.allFrames
+ 1184.27kB 11.84% 27.19%  1184.27kB 11.84%  runtime/pprof.StartCPUProfile
+ 1067.42kB 10.67% 37.86%  1067.42kB 10.67%  runtime/pprof.(*profileBuilder).emitLocation
+ 1037.06kB 10.36% 48.22%  1037.06kB 10.36%  runtime/pprof.(*profMap).lookup
+    1026kB 10.25% 58.48%     1026kB 10.25%  runtime.mallocgc
+  902.59kB  9.02% 67.50%  1553.21kB 15.52%  compress/flate.NewWriter (inline)
+  650.62kB  6.50% 74.00%   650.62kB  6.50%  compress/flate.(*compressor).init
+  536.37kB  5.36% 79.36%   536.37kB  5.36%  smip-mwp/internal/crypto.newLRUCache (inline)
+  528.17kB  5.28% 84.64%   528.17kB  5.28%  compress/flate.(*dictDecoder).init (inline)
+  512.62kB  5.12% 89.76%   512.62kB  5.12%  smip-mwp/internal/routing.(*Table).UpdateRoute
+  512.10kB  5.12% 94.88%   512.10kB  5.12%  github.com/prometheus/client_golang/prometheus.(*Registry).Register
+  512.02kB  5.12%   100%   512.02kB  5.12%  regexp/syntax.map.init.1
+         0     0%   100%   528.17kB  5.28%  compress/flate.NewReader
+         0     0%   100%   528.17kB  5.28%  compress/gzip.(*Reader).Reset
+         0     0%   100%   528.17kB  5.28%  compress/gzip.(*Reader).readHeader
+         0     0%   100%  1553.21kB 15.52%  compress/gzip.(*Writer).Write
+         0     0%   100%   528.17kB  5.28%  compress/gzip.NewReader (inline)
+         0     0%   100%   528.17kB  5.28%  github.com/golang/protobuf/proto.RegisterFile
+         0     0%   100%   512.10kB  5.12%  github.com/prometheus/client_golang/prometheus.(*Registry).MustRegister
+         0     0%   100%   512.10kB  5.12%  github.com/prometheus/client_golang/prometheus.MustRegister (inline)
+         0     0%   100%   512.10kB  5.12%  github.com/prometheus/client_golang/prometheus.init.0
+         0     0%   100%   528.17kB  5.28%  github.com/prometheus/client_model/go.init.1
+         0     0%   100%  1184.27kB 11.84%  main.main
+         0     0%   100%   512.02kB  5.12%  regexp/syntax.init
+         0     0%   100%     1026kB 10.25%  runtime.allocm
+         0     0%   100%  2088.67kB 20.88%  runtime.doInit (inline)
+         0     0%   100%  2088.67kB 20.88%  runtime.doInit1
+         0     0%   100%      513kB  5.13%  runtime.handoffp
+         0     0%   100%  3272.94kB 32.71%  runtime.main
+         0     0%   100%     1026kB 10.25%  runtime.mstart
+         0     0%   100%     1026kB 10.25%  runtime.mstart0
+         0     0%   100%     1026kB 10.25%  runtime.mstart1
+         0     0%   100%     1026kB 10.25%  runtime.newm
+         0     0%   100%     1026kB 10.25%  runtime.newobject
+         0     0%   100%      513kB  5.13%  runtime.resetspinning
+         0     0%   100%      513kB  5.13%  runtime.retake
+         0     0%   100%      513kB  5.13%  runtime.schedule
+         0     0%   100%     1026kB 10.25%  runtime.startm
+         0     0%   100%      513kB  5.13%  runtime.sysmon
+         0     0%   100%      513kB  5.13%  runtime.wakep
+         0     0%   100%  1037.06kB 10.36%  runtime/pprof.(*profileBuilder).addCPUData
+         0     0%   100%  2603.66kB 26.02%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%  4156.87kB 41.55%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  1553.21kB 15.52%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%  1553.21kB 15.52%  runtime/pprof.(*profileBuilder).pbSample
+         0     0%   100%  5193.93kB 51.91%  runtime/pprof.profileWriter
+         0     0%   100%   536.37kB  5.36%  smip-mwp/internal/crypto.init
+         0     0%   100%   536.37kB  5.36%  smip-mwp/internal/crypto.newHKDFCache (inline)
+         0     0%   100%   536.37kB  5.36%  smip-mwp/internal/crypto.newShardedLRU
+         0     0%   100%   512.62kB  5.12%  smip-mwp/internal/datapath/afxdp.BenchmarkRunXDPLoop_MultiWorker_WithCrypto
+         0     0%   100%   512.62kB  5.12%  testing.(*B).launch
+         0     0%   100%   512.62kB  5.12%  testing.(*B).runN
+         0     0%   100%  1184.27kB 11.84%  testing.(*M).Run
+         0     0%   100%  1184.27kB 11.84%  testing.(*M).before
+         0     0%   100%  1184.27kB 11.84%  testing/internal/testdeps.TestDeps.StartCPUProfile
