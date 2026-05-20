@@ -1,0 +1,56 @@
+File: afxdp.test
+Build ID: 0a53a6827f141c5594b2ad1c752e1fa23f4e7820
+Type: alloc_space
+Time: 2026-05-20 16:18:27 UTC
+Showing nodes accounting for 10023.81kB, 100% of 10023.81kB total
+      flat  flat%   sum%        cum   cum%
+ 2145.50kB 21.40% 21.40%  2145.50kB 21.40%  smip-mwp/internal/crypto.newLRUCache
+ 2048.47kB 20.44% 41.84%  2048.47kB 20.44%  runtime/pprof.allFrames
+ 1762.94kB 17.59% 59.43%  1762.94kB 17.59%  runtime/pprof.StartCPUProfile
+  902.59kB  9.00% 68.43%  1485.59kB 14.82%  compress/flate.NewWriter (inline)
+  583.01kB  5.82% 74.25%   583.01kB  5.82%  compress/flate.newDeflateFast (inline)
+  528.17kB  5.27% 79.52%   528.17kB  5.27%  compress/flate.(*dictDecoder).init (inline)
+  516.01kB  5.15% 84.67%   516.01kB  5.15%  runtime/pprof.(*profMap).lookup
+     513kB  5.12% 89.78%      513kB  5.12%  runtime.mallocgc
+  512.10kB  5.11% 94.89%   512.10kB  5.11%  github.com/prometheus/client_golang/prometheus.(*Registry).Register
+  512.04kB  5.11%   100%   512.04kB  5.11%  context.withCancel (inline)
+         0     0%   100%   583.01kB  5.82%  compress/flate.(*compressor).init
+         0     0%   100%   528.17kB  5.27%  compress/flate.NewReader
+         0     0%   100%   528.17kB  5.27%  compress/gzip.(*Reader).Reset
+         0     0%   100%   528.17kB  5.27%  compress/gzip.(*Reader).readHeader
+         0     0%   100%  1485.59kB 14.82%  compress/gzip.(*Writer).Write
+         0     0%   100%   528.17kB  5.27%  compress/gzip.NewReader (inline)
+         0     0%   100%   512.04kB  5.11%  context.WithCancel
+         0     0%   100%   528.17kB  5.27%  github.com/golang/protobuf/proto.RegisterFile
+         0     0%   100%   512.10kB  5.11%  github.com/prometheus/client_golang/prometheus.(*Registry).MustRegister
+         0     0%   100%   512.10kB  5.11%  github.com/prometheus/client_golang/prometheus.MustRegister (inline)
+         0     0%   100%   512.10kB  5.11%  github.com/prometheus/client_golang/prometheus.init.0
+         0     0%   100%   528.17kB  5.27%  github.com/prometheus/client_model/go.init.1
+         0     0%   100%  1762.94kB 17.59%  main.main
+         0     0%   100%      513kB  5.12%  runtime.allocm
+         0     0%   100%  3185.77kB 31.78%  runtime.doInit (inline)
+         0     0%   100%  3185.77kB 31.78%  runtime.doInit1
+         0     0%   100%  4948.70kB 49.37%  runtime.main
+         0     0%   100%      513kB  5.12%  runtime.mstart
+         0     0%   100%      513kB  5.12%  runtime.mstart0
+         0     0%   100%      513kB  5.12%  runtime.mstart1
+         0     0%   100%      513kB  5.12%  runtime.newm
+         0     0%   100%      513kB  5.12%  runtime.newobject
+         0     0%   100%      513kB  5.12%  runtime.resetspinning
+         0     0%   100%      513kB  5.12%  runtime.schedule
+         0     0%   100%      513kB  5.12%  runtime.startm
+         0     0%   100%      513kB  5.12%  runtime.wakep
+         0     0%   100%   516.01kB  5.15%  runtime/pprof.(*profileBuilder).addCPUData
+         0     0%   100%  3534.06kB 35.26%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%  3534.06kB 35.26%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  1485.59kB 14.82%  runtime/pprof.(*profileBuilder).emitLocation
+         0     0%   100%  1485.59kB 14.82%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%  4050.07kB 40.40%  runtime/pprof.profileWriter
+         0     0%   100%  2145.50kB 21.40%  smip-mwp/internal/crypto.init
+         0     0%   100%  2145.50kB 21.40%  smip-mwp/internal/crypto.newHKDFCache (inline)
+         0     0%   100%  2145.50kB 21.40%  smip-mwp/internal/crypto.newShardedLRU
+         0     0%   100%   512.04kB  5.11%  testing.(*B).launch
+         0     0%   100%   512.04kB  5.11%  testing.(*B).runN
+         0     0%   100%  1762.94kB 17.59%  testing.(*M).Run
+         0     0%   100%  1762.94kB 17.59%  testing.(*M).before
+         0     0%   100%  1762.94kB 17.59%  testing/internal/testdeps.TestDeps.StartCPUProfile
