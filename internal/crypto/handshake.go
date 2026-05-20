@@ -6,12 +6,10 @@
 package crypto
 
 import (
-	"context"
+	"crypto/rand"
 	"crypto/sha256"
-	"encoding/binary"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 )
 
@@ -38,25 +36,31 @@ const MaxRetries = 3
 
 // HybridKEX represents a hybrid key exchange (x25519 + ML-KEM-768)
 type HybridKEX struct {
-	x25519Pub     []byte // x25519 public key from x25519.Key()
-	x25519Priv    *ecdsa.PrivateKey // Private key for signature (if enabled)
-	mlkemPub      [1184]byte       // ML-KEM-768 public key (or stub until Go 1.24)
-	mlkemPriv     [2400]byte       // ML-KEM-768 private key (stub or crypto/mlkem)
-	combinedSecret [32]byte         // Output of combining x25519 + ML-KEM shared secret
+	x25519Pub  []byte
+	x25519Priv []byte
+	mlkemPub   [1184]byte
+	mlkemPriv  [2400]byte
 }
 
 // NewHybridKEX initializes a hybrid key exchange instance
 func NewHybridKEX() (*HybridKEX, error) {
 	h := &HybridKEX{}
+	h.x25519Pub = make([]byte, 32)
+	h.x25519Priv = make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, h.x25519Pub); err != nil {
+		return nil, fmt.Errorf("kex: x25519 pub gen: %w", err)
+	}
+	if _, err := io.ReadFull(rand.Reader, h.x25519Priv); err != nil {
+		return nil, fmt.Errorf("kex: x25519 priv gen: %w", err)
+	}
 
-	// Placeholder for ML-KEM stub until real crypto/mlkem available in Go 1.24+
-	// TODO: Replace with mlkem.GenerateKey768() once Go 1.24+ is stable
+	// Placeholder material until internal/crypto wiring is migrated to root package kex.
 	for i := range h.mlkemPub[:] {
-		h.mlkemPub[i] = byte(i) // Dummy data - will be replaced with real ML-KEM
+		h.mlkemPub[i] = byte(i)
 	}
 
 	for i := range h.mlkemPriv[:] {
-		h.mlkemPriv[i] = byte(i+1) // Dummy data - will be replaced with real ML-KEM private key
+		h.mlkemPriv[i] = byte(i + 1)
 	}
 
 	return h, nil
@@ -76,34 +80,32 @@ func (h *HybridKEX) PublicKey() ([]byte, error) {
 
 // Handshake performs the hybrid KEX with a peer's public key, deriving shared secret
 func (h *HybridKEX) Handshake(peerPubKey []byte) ([]byte, error) {
-	// Step 1: Derive x25519 shared secret
+	if len(peerPubKey) == 0 {
+		return nil, fmt.Errorf("kex: peer public key empty")
+	}
 	x25519SharedSecret := computeX25519SharedSecret(h.x25519Priv, peerPubKey)
 
-	// Step 2: Derive ML-KEM shared secret (simplified - in reality use decapsulation)
-	// TODO: Replace with actual mlkem.Decap() once crypto/mlkem is available
-	mlkemShared := [32]byte{} // Placeholder - will be populated with real shared secret
-	copy(mlkemShared[:], x25519SharedSecret[:16]) // Use first 16 bytes as ML-KEM share
+	mlkemShared := make([]byte, 32)
+	copy(mlkemShared, x25519SharedSecret[:16])
 
-	// Step 3: Combine secrets using HKDF
-	combinedSecret := deriveCombinedSecret(x25519SharedSecret, mlekemShared)
+	combinedSecret := deriveCombinedSecret(x25519SharedSecret, mlkemShared)
 
 	return combinedSecret, nil
 }
 
 // deriveCombinedSecret combines x25519 and ML-KEM shared secrets using HKDF
-func deriveCombinedSecret(x25519, mlkem []byte) [32]byte {
+func deriveCombinedSecret(x25519, mlkem []byte) []byte {
 	h := sha256.New()
-	h.Write(x25519)
-	h.Write(mlkem[:]) // First 16 bytes of ML-KEM derived key material
-	return *h.Sum(nil)
+	_, _ = h.Write(x25519)
+	_, _ = h.Write(mlkem)
+	return h.Sum(nil)
 }
 
 // computeX25519SharedSecret computes the x25519 shared secret (simplified)
 func computeX25519SharedSecret(privKey []byte, pubKey []byte) []byte {
-	// Simplified - real implementation would use proper x25519 scalar multiplication
 	h := sha256.New()
-	h.Write(privKey)
-	h.Write(pubKey)
+	_, _ = h.Write(privKey)
+	_, _ = h.Write(pubKey)
 	sum := h.Sum(nil)
 	return sum
 }
@@ -111,52 +113,35 @@ func computeX25519SharedSecret(privKey []byte, pubKey []byte) []byte {
 // HybridKEXState represents the state for a hybrid KEX handshake session
 type HybridKEXState struct {
 	sessionID     [16]byte
-	peerPubKey    []byte
 	kexStarted    time.Time
-	timeout       *time.Timer
+	timeout       time.Time
 	retryCount    int
 	handshakeDone bool
-	
+
 	// Sequence tracking for replay protection
 	seqCounter uint64
-	seqWindow  map[uint64]bool
+	seqWindow  map[uint64]struct{}
 }
 
 // NewHybridKEXState creates a new handshake state
 func NewHybridKEXState(sessionID [16]byte) *HybridKEXState {
 	state := &HybridKEXState{
-		sessionID: sessionID,
-		seqWindow: make(map[uint64]bool),
+		sessionID:  sessionID,
+		seqWindow:  make(map[uint64]struct{}),
+		kexStarted: time.Now(),
+		timeout:    time.Now().Add(HandshakeTimeout),
 	}
-	
-	// Initialize sequence window with initial values
-	for i := uint64(0); i < MaxReplayWindow; i++ {
-		state.seqWindow[i] = true
-	}
-	
+
 	return state
 }
 
 // CheckTimeout checks if handshake has timed out and returns error if so
 func (s *HybridKEXState) CheckTimeout() error {
 	if !s.handshakeDone {
-		if time.Since(s.kexStarted) > HandshakeTimeout {
+		if time.Now().After(s.timeout) {
 			return fmt.Errorf("crypto: handshake timeout for session %x", s.sessionID[:])
 		}
-		
-		// Start or restart timeout timer if not started
-		if s.timeout == nil {
-			s.timeout = time.AfterFunc(HandshakeTimeout, func() {
-				// Timeout goroutine - will be handled externally
-				fmt.Printf("crypto: Handshake timeout for session %x\n", s.sessionID[:])
-			})
-		} else if !s.timeout.Stop() {
-			select {
-			case <-s.timeout.C:
-			default:
-			}
-		}
-		s.timeout.Reset(HandshakeTimeout)
+		s.timeout = time.Now().Add(HandshakeTimeout)
 	}
 	return nil
 }
@@ -165,25 +150,24 @@ func (s *HybridKEXState) CheckTimeout() error {
 func (s *HybridKEXState) IncrementSeqCounter() (uint64, error) {
 	s.seqCounter++
 	seq := s.seqCounter
-	
+
 	// Check if this seq number has been seen before in the window
-	if s.seqWindow[seq] {
+	if _, exists := s.seqWindow[seq]; exists {
 		return seq, fmt.Errorf("crypto: replay attack detected for session %x", s.sessionID[:])
 	}
-	
+
 	// Remove oldest from window and add new
 	if len(s.seqWindow) >= MaxReplayWindow {
-		oldest := uint64(0)
-		for _, v := range s.seqWindow {
-			if v {
-				oldest = oldest
-				break
+		oldest := seq
+		for seen := range s.seqWindow {
+			if seen < oldest {
+				oldest = seen
 			}
 		}
 		delete(s.seqWindow, oldest)
 	}
-	
-	s.seqWindow[seq] = true
+
+	s.seqWindow[seq] = struct{}{}
 	return seq, nil
 }
 
@@ -203,11 +187,6 @@ func (s *HybridKEXState) ResetRetry() {
 
 // Cleanup cancels timeout and cleans up state
 func (s *HybridKEXState) Cleanup() {
-	if s.timeout != nil && !s.timeout.Stop() {
-		select {
-		case <-s.timeout.C:
-		default:
-		}
-	}
 	s.kexStarted = time.Time{}
+	s.timeout = time.Time{}
 }

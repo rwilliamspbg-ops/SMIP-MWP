@@ -59,6 +59,9 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 	var wcache workerSessionCache
 	// per-goroutine packet pool to avoid sync.Pool on hot path
 	wpool := newWorkerPktPool(f.cfg.FrameSize, 0)
+	// Reuse output buffers across iterations to reduce per-poll allocations.
+	out := make([][]byte, 0, pollBatch)
+	pooledPtrs := make([]*[]byte, 0, pollBatch)
 
 	for {
 		// Fast check for cancellation without using `select` inside the hot loop.
@@ -83,11 +86,11 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 		// record rx
 		IncRx(len(frames))
 
-		out := make([][]byte, 0, len(frames))
+		out = out[:0]
 		// track which out entries were allocated from the pktPool so we can
 		// return them after a successful send. We store pointers to pooled
 		// buffers (type *[]byte) to avoid passing pointer-like values by value.
-		pooledPtrs := make([]*[]byte, 0, len(frames))
+		pooledPtrs = pooledPtrs[:0]
 		for _, buf := range frames {
 			// Parse and select next-hop/queue
 			nh, q, err := PrepareForPacket(buf, f.routeTable)
@@ -145,33 +148,26 @@ func (f *Forwarder) RunXDPLoop(ctx context.Context, sock xdpSocket, umem xdpUMEM
 						IncCryptoError()
 					}
 				}
-				// Fallback: allocate ciphertext
-				ct, err := sess.CryptoState.Encrypt(payload, h.SeqNum)
-				if err == nil {
-					// construct new packet: header + ct using pooled buffer when available
-					var newpkt []byte
-					if wpool != nil {
-						bufPtr := wpool.Get()
-						needed := wire.HeaderSize + len(ct)
-						if cap(*bufPtr) < needed {
-							// fall back to fresh allocation when pool buffer too small
-							wpool.Put(bufPtr)
-							newpkt = make([]byte, needed)
-						} else {
-							newpkt = (*bufPtr)[:needed]
-							// mark this pool pointer for later return
-							pooledPtrs = append(pooledPtrs, bufPtr)
-						}
-						copy(newpkt, out[i][:wire.HeaderSize])
-						copy(newpkt[wire.HeaderSize:], ct)
+				// Fallback: encrypt into destination packet buffer directly.
+				cipherLen := payloadLen + crypto.TagSize
+				needed := wire.HeaderSize + cipherLen
+				var newpkt []byte
+				if wpool != nil {
+					bufPtr := wpool.Get()
+					if cap(*bufPtr) < needed {
+						wpool.Put(bufPtr)
+						newpkt = make([]byte, needed)
 					} else {
-						newpkt = make([]byte, wire.HeaderSize+len(ct))
-						copy(newpkt, out[i][:wire.HeaderSize])
-						copy(newpkt[wire.HeaderSize:], ct)
+						newpkt = (*bufPtr)[:needed]
+						pooledPtrs = append(pooledPtrs, bufPtr)
 					}
-					// update header length
+				} else {
+					newpkt = make([]byte, needed)
+				}
+				copy(newpkt, out[i][:wire.HeaderSize])
+				if _, err := sess.CryptoState.EncryptTo(newpkt[wire.HeaderSize:wire.HeaderSize], payload, h.SeqNum); err == nil {
 					if vh, err := wire.ViewHeader(newpkt); err == nil {
-						vh.SetLength(uint16(len(ct)))
+						vh.SetLength(uint16(cipherLen))
 					}
 					out[i] = newpkt
 					continue
