@@ -1,0 +1,70 @@
+# Dockerfile for SMIP-MWP AF_XDP Performance Testing
+# Requires Linux host with appropriate kernel and tools
+
+FROM golang:1.25-bookworm AS builder
+
+WORKDIR /app
+
+# Install build dependencies (Linux only)
+RUN apt-get update && apt-get install -y \
+    libbpf-dev \
+    clang \
+    llvm \
+    libelf-dev \
+    iproute2 \
+    pkg-config \
+    tc \
+    iptables \
+    net-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files first for caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build main binary with AF_XDP support
+RUN go build -tags=withafxdp -o mohawk-node ./cmd/mohawk-node
+
+FROM debian:bookworm-slim AS runner
+
+# Install runtime dependencies (Linux only)
+RUN apt-get update && apt-get install -y \
+    libbpf-dev \
+    clang \
+    llvm \
+    libelf-dev \
+    iproute2 \
+    tc \
+    iptables \
+    net-tools \
+    sysstat \
+    ca-certificates \
+    procps \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy built binary and source from builder
+COPY --from=builder /app/mohawk-node ./mohawk-node
+COPY --from=builder /app/go.mod ./go.mod
+COPY --from=builder /app/go.sum ./go.sum
+COPY --from=builder /app/internal ./internal
+COPY --from=builder /cmd ./cmd
+
+# Copy scripts
+COPY scripts/ ./scripts/
+RUN chmod +x ./scripts/*.sh
+
+WORKDIR /app
+
+# Set AF_XDP environment variables
+ENV AF_XDP_ENABLED=true
+ENV BPF_MODE=AF_XDP
+
+# Build tag requirement
+ENTRYPOINT ["/app/mohawk-node"]
+CMD ["run", "-tags=withafxdp"]

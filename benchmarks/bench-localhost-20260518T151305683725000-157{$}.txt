@@ -1,0 +1,88 @@
+SMIP-MWP benchmark run: 20260518T151305683725000
+Profile enabled: 0
+Command line: 
+
+=== go env ===
+set AR=ar
+set CC=gcc
+set CGO_CFLAGS=-O2 -g
+set CGO_CPPFLAGS=
+set CGO_CXXFLAGS=-O2 -g
+set CGO_ENABLED=0
+set CGO_FFLAGS=-O2 -g
+set CGO_LDFLAGS=-O2 -g
+set CXX=g++
+set GCCGO=gccgo
+set GO111MODULE=
+set GOAMD64=v1
+set GOARCH=amd64
+set GOAUTH=netrc
+set GOBIN=
+set GOCACHE=C:\Users\rwill\AppData\Local\go-build
+set GOCACHEPROG=
+set GODEBUG=
+set GOENV=C:\Users\rwill\AppData\Roaming\go\env
+set GOEXE=.exe
+set GOEXPERIMENT=
+set GOFIPS140=off
+set GOFLAGS=
+set GOGCCFLAGS=-m64 -fno-caret-diagnostics -Qunused-arguments -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=C:\Users\rwill\AppData\Local\Temp\go-build1792492141=/tmp/go-build -gno-record-gcc-switches
+set GOHOSTARCH=amd64
+set GOHOSTOS=windows
+set GOINSECURE=
+set GOMOD=C:\Users\rwill\SMIP-MWP\go.mod
+set GOMODCACHE=C:\Users\rwill\go\pkg\mod
+set GONOPROXY=
+set GONOSUMDB=
+set GOOS=windows
+set GOPATH=C:\Users\rwill\go
+set GOPRIVATE=
+set GOPROXY=https://proxy.golang.org,direct
+set GOROOT=C:\Program Files\Go
+set GOSUMDB=sum.golang.org
+set GOTELEMETRY=local
+set GOTELEMETRYDIR=C:\Users\rwill\AppData\Roaming\go\telemetry
+set GOTMPDIR=
+set GOTOOLCHAIN=auto
+set GOTOOLDIR=C:\Program Files\Go\pkg\tool\windows_amd64
+set GOVCS=
+set GOVERSION=go1.26.2
+set GOWORK=
+set PKG_CONFIG=pkg-config
+
+=== system info ===
+MINGW64_NT-10.0-26200 Sovereign1 3.6.6-1cdd4371.x86_64 2026-01-15 22:20 UTC x86_64 Msys
+./scripts/bench.sh: line 42: lscpu: command not found
+
+=== benchmarks ===
+Running default: go test ./... -bench . -benchmem -run ^$ -count=1
++ go test ./... -bench . -benchmem -run '^$' -count=1
+?   	smip-mwp	[no test files]
+?   	smip-mwp/cmd/mohawk-node	[no test files]
+goos: windows
+goarch: amd64
+pkg: smip-mwp/internal/crypto
+cpu: AMD Ryzen AI 7 350 w/ Radeon 860M              
+BenchmarkNewHybridSession_Cached-16      	 3160854	       353.0 ns/op	    1392 B/op	       4 allocs/op
+BenchmarkNewHybridSession_Uncached-16    	 3231434	       367.1 ns/op	    1392 B/op	       4 allocs/op
+BenchmarkEncryptInPlace-16               	 2289734	       529.7 ns/op	    1552 B/op	       2 allocs/op
+BenchmarkDecryptInPlace-16               	 2714774	       436.3 ns/op	      16 B/op	       1 allocs/op
+PASS
+ok  	smip-mwp/internal/crypto	6.987s
+goos: windows
+goarch: amd64
+pkg: smip-mwp/internal/datapath/afxdp
+cpu: AMD Ryzen AI 7 350 w/ Radeon 860M              
+BenchmarkPacketAllocate-16                       	1000000000	         0.2076 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPacketPool-16                           	153113329	         7.935 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRunXDPLoop_WithCrypto-16                	  722224	      1825 ns/op	     560 B/op	       9 allocs/op
+BenchmarkRunXDPLoop_MultiWorker_WithCrypto-16    	  547669	      2172 ns/op	     632 B/op	      11 allocs/op
+BenchmarkRunXDPLoop_NoCrypto-16                  	  724117	      1681 ns/op	     544 B/op	       8 allocs/op
+PASS
+ok  	smip-mwp/internal/datapath/afxdp	7.304s
+PASS
+ok  	smip-mwp/internal/routing	0.180s
+PASS
+ok  	smip-mwp/internal/wire	0.187s
+
+Benchmark run complete. Output: benchmarks/bench-localhost-20260518T151305683725000-157{$}.txt

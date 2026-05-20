@@ -1,0 +1,71 @@
+SMIP-MWP benchmark run: 20260515T124847Z
+Profile enabled: 0
+Command line: go test ./internal/crypto -bench . -benchmem -run ^$ -count=1
+
+=== go env ===
+set AR=ar
+set CC=gcc
+set CGO_CFLAGS=-O2 -g
+set CGO_CPPFLAGS=
+set CGO_CXXFLAGS=-O2 -g
+set CGO_ENABLED=0
+set CGO_FFLAGS=-O2 -g
+set CGO_LDFLAGS=-O2 -g
+set CXX=g++
+set GCCGO=gccgo
+set GO111MODULE=
+set GOAMD64=v1
+set GOARCH=amd64
+set GOAUTH=netrc
+set GOBIN=
+set GOCACHE=C:\Users\rwill\AppData\Local\go-build
+set GOCACHEPROG=
+set GODEBUG=x509negativeserial=1
+set GOENV=C:\Users\rwill\AppData\Roaming\go\env
+set GOEXE=.exe
+set GOEXPERIMENT=
+set GOFIPS140=off
+set GOFLAGS=
+set GOGCCFLAGS=-m64 -fno-caret-diagnostics -Qunused-arguments -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=C:\Users\rwill\AppData\Local\Temp\go-build294242416=/tmp/go-build -gno-record-gcc-switches
+set GOHOSTARCH=amd64
+set GOHOSTOS=windows
+set GOINSECURE=
+set GOMOD=C:\Users\rwill\SMIP-MWP\go.mod
+set GOMODCACHE=C:\Users\rwill\go\pkg\mod
+set GONOPROXY=
+set GONOSUMDB=
+set GOOS=windows
+set GOPATH=C:\Users\rwill\go
+set GOPRIVATE=
+set GOPROXY=https://proxy.golang.org,direct
+set GOROOT=C:\Program Files\Go
+set GOSUMDB=sum.golang.org
+set GOTELEMETRY=local
+set GOTELEMETRYDIR=C:\Users\rwill\AppData\Roaming\go\telemetry
+set GOTMPDIR=
+set GOTOOLCHAIN=auto
+set GOTOOLDIR=C:\Program Files\Go\pkg\tool\windows_amd64
+set GOVCS=
+set GOVERSION=go1.26.2
+set GOWORK=
+set PKG_CONFIG=pkg-config
+
+=== system info ===
+MINGW64_NT-10.0-26200 Sovereign1 3.6.6-1cdd4371.x86_64 2026-01-15 22:20 UTC x86_64 Msys
+./scripts/bench.sh: line 41: lscpu: command not found
+
+=== benchmarks ===
+Running custom command: go test ./internal/crypto -bench . -benchmem -run ^$ -count=1
++ go test ./internal/crypto -bench . -benchmem -run '^$' -count=1
+goos: windows
+goarch: amd64
+pkg: smip-mwp/internal/crypto
+cpu: AMD Ryzen AI 7 350 w/ Radeon 860M              
+BenchmarkNewHybridSession_Cached-16      	 1841221	       601.0 ns/op	    1392 B/op	       4 allocs/op
+BenchmarkNewHybridSession_Uncached-16    	 1398572	       758.9 ns/op	    1392 B/op	       4 allocs/op
+BenchmarkEncryptInPlace-16               	 1000000	      1108 ns/op	    1552 B/op	       2 allocs/op
+BenchmarkDecryptInPlace-16               	 1470327	       861.2 ns/op	      16 B/op	       1 allocs/op
+PASS
+ok  	smip-mwp/internal/crypto	13.020s
+
+Benchmark run complete. Output: benchmarks/bench-localhost-20260515T124847Z.txt

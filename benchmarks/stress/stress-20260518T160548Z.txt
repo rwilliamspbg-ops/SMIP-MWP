@@ -1,0 +1,40 @@
+=== SMIP-MWP Stress Test ===
+Timestamp: 20260518T160548Z
+Duration: 300s
+Concurrent: 16
+Load Level: high
+
+=== System Info ===
+Linux Sovereign1 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 GNU/Linux
+Architecture:                         x86_64
+CPU op-mode(s):                       32-bit, 64-bit
+Address sizes:                        48 bits physical, 48 bits virtual
+Byte Order:                           Little Endian
+CPU(s):                               16
+On-line CPU(s) list:                  0-15
+Vendor ID:                            AuthenticAMD
+Model name:                           AMD Ryzen AI 7 350 w/ Radeon 860M
+CPU family:                           26
+Model:                                96
+Thread(s) per core:                   2
+Core(s) per socket:                   8
+Socket(s):                            1
+Stepping:                             0
+BogoMIPS:                             3992.41
+Flags:                                fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid tsc_known_freq pni pclmulqdq ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext perfctr_core ssbd ibrs ibpb stibp vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves avx_vnni avx512_bf16 clzero xsaveerptr arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload avx512vbmi umip avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid fsrm avx512_vp2intersect
+Virtualization:                       AMD-V
+Hypervisor vendor:                    Microsoft
+Virtualization type:                  full
+L1d cache:                            384 KiB (8 instances)
+               total        used        free      shared  buff/cache   available
+Mem:           7.6Gi       880Mi       6.1Gi       4.3Mi       794Mi       6.7Gi
+Swap:          2.0Gi          0B       2.0Gi
+
+./scripts/stress-test.sh: line 33: go: command not found
+
+=== Configured Load Parameters ===
+Runs: 12
+Concurrent: 32
+Memory Pressure: true
+
+=== Building Crypto Stress Tests ===

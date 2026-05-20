@@ -1,0 +1,9 @@
+==========================================
+SMIP-MWP Quick Performance Test
+==========================================
+Timestamp: 20260518T160528Z
+Benchmark Count: 1
+Target: .
+Profile Mode: false
+
+=== Environment ===

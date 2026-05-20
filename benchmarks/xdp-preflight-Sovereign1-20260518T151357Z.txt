@@ -1,0 +1,23 @@
+SMIP-MWP AF_XDP preflight
+timestamp: 20260518T151358Z
+host: localhost
+iface: eth0
+run_go_test: 0
+
+PASS: required command available: uname
+FAIL: required command missing: ip
+PASS: required command available: awk
+PASS: required command available: grep
+PASS: required command available: sed
+FAIL: required command missing: ethtool
+PASS: required command available: go
+FAIL: kernel version 3.6.6 below baseline (>=5.10)
+FAIL: interface not found; pass --iface <name>
+WARN: libbpf headers not found (/usr/include/bpf/libbpf.h)
+PASS: tool found: clang
+WARN: tool missing: llvm-config
+WARN: no hugepages configured (HugePages_Total=0)
+WARN: not running as root; attach/runtime operations may fail
+
+summary: PASS=6 WARN=4 FAIL=4
+report: benchmarks/xdp-preflight-Sovereign1-20260518T151357Z.txt

@@ -1,0 +1,61 @@
+# Dockerfile for SMIP-MWP Stress Testing
+FROM golang:1.25-bookworm AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    libbpf-dev \
+    clang \
+    llvm \
+    libelf-dev \
+    iproute2 \
+    sysstat \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files first for caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build main binary
+RUN go build -o mohawk-node ./cmd/mohawk-node
+
+FROM debian:bookworm-slim AS runner
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libbpf-dev \
+    clang \
+    llvm \
+    libelf-dev \
+    iproute2 \
+    sysstat \
+    ca-certificates \
+    procps \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy built binary and source from builder
+COPY --from=builder /app/mohawk-node ./mohawk-node
+COPY --from=builder /app/go.mod ./go.mod
+COPY --from=builder /app/go.sum ./go.sum
+COPY --from=builder /app/internal ./internal
+COPY --from=builder /cmd ./cmd
+
+# Copy scripts
+COPY scripts/ ./scripts/
+RUN chmod +x ./scripts/*.sh
+
+WORKDIR /app
+
+# Set memory limits for stress testing
+ENV GOOS=linux
+ENV CGO_ENABLED=1
+
+ENTRYPOINT ["/bin/bash"]
+CMD ["-c", "exec bash"]

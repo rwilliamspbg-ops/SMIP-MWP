@@ -1,0 +1,75 @@
+# SMIP-MWP Performance & Stress Test Docker Compose Configuration
+# Use this file to create a dedicated test environment for performance testing
+
+services:
+  # Main test runner - builds and tests the application with profiling
+  perf-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    image: smip-mwp:perf-test-${TODAY:-latest}
+    container_name: smip-mwp-perf-test
+    privileged: true
+    platform: linux/amd64
+    command: >
+      /app/scripts/full-performance-suite.sh
+    environment:
+      - GODEBUG=gctrace=1,gcflags=all=-m=2,-m=2,-m=2
+      - NUM_PROCESSES=${NUM_PROCESSES:-4}
+      - WORKERS=${WORKERS:-4}
+    volumes:
+      - ./benchmarks:/app/benchmarks
+    deploy:
+      resources:
+        limits:
+          cpus: ${CPU_LIMITS:-8}
+          memory: 4G
+        reservations:
+          cpus: 2
+          memory: 1G
+
+  # AF_XDP specific test container - requires Linux host kernel support
+  afxdp-tester:
+    build:
+      context: .
+      dockerfile: Dockerfile.afxdp
+    image: smip-mwp-afxdp:${VERSION:-latest}
+    container_name: smip-mwp-afxdp-tester
+    privileged: true
+    platform: linux/amd64
+    command: >
+      go test -tags=withafxdp ./... -v -bench . -benchmem -run ^$ -count=1
+    environment:
+      - AF_XDP_INTERFACE=${AF_XDP_INTERFACE:-eth0}
+    volumes:
+      - /dev/net/tun:/dev/net/tun
+    deploy:
+      resources:
+        limits:
+          cpus: 4
+          memory: 2G
+
+  # Stress testing container - high load benchmarks
+  stress-tester:
+    build:
+      context: .
+      dockerfile: Dockerfile.stress
+    image: smip-mwp-stress:${VERSION:-latest}
+    container_name: smip-mwp-stress-tester
+    privileged: true
+    platform: linux/amd64
+    command: >
+      go test ./internal/... -bench . -benchmem -run ^$ -count=10 -memprofile=/app/benchmarks/stress_mem.prof -cpuprofile=/app/benchmarks/stress_cpu.prof
+    environment:
+      - STRESS_LEVEL=${STRESS_LEVEL:-high}
+    volumes:
+      - ./benchmarks:/app/benchmarks
+
+# Network mode for host network access (needed for AF_XDP)
+networks:
+  performance-test:
+    driver: bridge
+
+volumes:
+  perf-data:
+    driver: local

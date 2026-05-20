@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# full-performance-suite.sh - Comprehensive performance testing for SMIP-MWP
+
+set -euo pipefail
+
+# Configuration
+OUTPUT_DIR="${1:-./benchmarks}"
+PROFILE="${2:-false}"
+NUM_RUNS="${3:-1}"
+
+mkdir -p "${OUTPUT_DIR}"
+TS=$(date -u +"%Y%m%dT%H%M%SZ")
+
+# Go environment
+echo "=== SMIP-MWP Performance Test Suite ===" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+echo "Timestamp: ${TS}" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+echo "Profile mode: ${PROFILE}" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+echo "Number of runs: ${NUM_RUNS}" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+echo "" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+
+# System information
+echo "=== System Information ===" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+uname -a >> "${OUTPUT_DIR}/suite-${TS}.txt" 2>&1 || true
+lscpu >> "${OUTPUT_DIR}/suite-${TS}.txt" 2>&1 || true
+free -h >> "${OUTPUT_DIR}/suite-${TS}.txt" 2>&1 || true
+cat /proc/meminfo >> "${OUTPUT_DIR}/suite-${TS}.txt" 2>&1 || true
+echo "" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+
+# Go version
+go env >> "${OUTPUT_DIR}/suite-${TS}.txt" 2>&1 || true
+echo "" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+
+# Unit tests (baseline)
+echo "=== Running Unit Tests ===" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+go test ./... -v -count=1 >> "${OUTPUT_DIR}/suite-${TS}.txt" 2>&1 || true
+echo "" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+
+# Microbenchmarks
+echo "=== Running Microbenchmarks ===" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+go test ./internal/... -bench . -benchmem -run ^$ -count=${NUM_RUNS} >> "${OUTPUT_DIR}/suite-${TS}.txt" 2>&1 || true
+echo "" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+
+# Crypto benchmarks
+echo "=== Running Crypto Benchmarks ===" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+go test ./internal/crypto -bench . -benchmem -run ^$ -count=${NUM_RUNS} >> "${OUTPUT_DIR}/suite-${TS}.txt" 2>&1 || true
+echo "" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+
+# Network benchmarks (if available)
+echo "=== Running Network Benchmarks ===" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+go test ./internal/network -bench . -benchmem -run ^$ -count=${NUM_RUNS} >> "${OUTPUT_DIR}/suite-${TS}.txt" 2>&1 || true
+echo "" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+
+# Memory profiling (if requested)
+if [ "${PROFILE}" = "true" ]; then
+    echo "=== Running with Profiling ===" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+    go test ./internal/... -bench . -benchmem -run ^$ -count=1 \
+        -cpuprofile="${OUTPUT_DIR}/perf-${TS}-cpu.prof" \
+        -memprofile="${OUTPUT_DIR}/perf-${TS}-mem.prof" \
+        2>&1 | tee -a "${OUTPUT_DIR}/suite-${TS}.txt" || true
+    echo "" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+fi
+
+# CPU profiling
+if [ "${PROFILE}" = "true" ]; then
+    go tool pprof -http=:8081 "${OUTPUT_DIR}"/perf-${TS}-cpu.prof &>/dev/null 2>&1 || true
+    echo "CPU profile available at: file://${OUTPUT_DIR}/perf-${TS}-cpu.prof" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+fi
+
+echo "" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+echo "=== Performance Test Suite Complete ===" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+echo "Output: ${OUTPUT_DIR}/suite-${TS}.txt" >> "${OUTPUT_DIR}/suite-${TS}.txt"
+
+exit 0
