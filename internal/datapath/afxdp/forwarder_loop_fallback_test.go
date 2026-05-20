@@ -65,7 +65,10 @@ func TestRunXDPLoop_FallbackEncryptReplacesPacket(t *testing.T) {
 	sock.frames <- buf
 
 	select {
-	case sent := <-sock.sent:
+	case <-sock.sentSignal:
+		sock.mu.Lock()
+		sent := sock.lastSent
+		sock.mu.Unlock()
 		if len(sent) != 1 {
 			t.Fatalf("expected exactly 1 packet, got %d", len(sent))
 		}

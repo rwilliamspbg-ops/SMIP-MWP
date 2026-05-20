@@ -6,28 +6,30 @@ package crypto
 
 import (
 	"sync/atomic"
+	"time"
 )
 
-var globalSeqCounter atomic.Int64
+var globalSeqCounter atomic.Uint64
 
 // SecurityConfig holds security parameters for SMIP operations
 type SecurityConfig struct {
-	MaxReplayWindow uint64   // Window size for replay detection  
-	HandshakeTimeout int      // Timeout in seconds
-	RateLimitPerSec int      // DoS rate limiting packets per second
+	MaxReplayWindow  uint64
+	HandshakeTimeout time.Duration
+	RateLimitPerSec  int
 }
 
 var defaultSecurityConfig = SecurityConfig{
-	MaxReplayWindow: MaxReplayWindow,
+	MaxReplayWindow:  MaxReplayWindow,
 	HandshakeTimeout: HandshakeTimeout,
-	RateLimitPerSec: 10_000_000, // 10M packets/sec max
+	RateLimitPerSec:  10_000_000,
 }
 
 // CheckSequenceNumberOverflow detects counter wraparound
 func CheckSequenceNumberOverflow(seq uint64, maxSeq uint64) bool {
-	current := globalSeqCounter.Load()
-	if seq > maxSeq && current%maxSeq == 0 {
-		globalSeqCounter.Add(1)
+	if maxSeq == 0 {
+		return false
+	}
+	if seq >= maxSeq {
 		return true
 	}
 	return false
@@ -35,15 +37,14 @@ func CheckSequenceNumberOverflow(seq uint64, maxSeq uint64) bool {
 
 // IncrementGlobalSeq increments the global sequence counter
 func IncrementGlobalSeq() uint64 {
-	globalSeqCounter.Add(1)
-	return globalSeqCounter.Load()
+	return globalSeqCounter.Add(1)
 }
 
 // DoSThrottle limits packet processing rate to prevent amplification attacks
 type DoSThrottle struct {
-	lastPacketTime  int64 // Unix timestamp in nanoseconds
-	rateLimitNs     int64 // Allowed packets per second (e.g., 1M)
-	windowNs        int64 // Sliding window size in nanoseconds
+	lastPacketTime int64 // Unix timestamp in nanoseconds
+	rateLimitNs    int64 // Allowed packets per second (e.g., 1M)
+	windowNs       int64 // Sliding window size in nanoseconds
 }
 
 func NewDoSThrottle(ratePerSec int) *DoSThrottle {
@@ -55,10 +56,10 @@ func NewDoSThrottle(ratePerSec int) *DoSThrottle {
 
 // AllowPacket checks if packet processing is allowed under DoS protection
 func (d *DoSThrottle) AllowPacket() bool {
-	now := dosec.Now().UnixNano()
+	now := time.Now().UnixNano()
 	lastSeen := atomic.LoadInt64(&d.lastPacketTime)
-	
-	if now-lastSeen <= d.rateLimitNs {
+
+	if lastSeen == 0 || now-lastSeen >= d.rateLimitNs {
 		atomic.StoreInt64(&d.lastPacketTime, now)
 		return true
 	}

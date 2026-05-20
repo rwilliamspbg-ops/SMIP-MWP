@@ -10,16 +10,15 @@ import (
 
 // FramePool provides a sync.Pool-based frame buffer pool to eliminate per-packet allocations
 type FramePool struct {
-	pool      sync.Pool
-	size      int // Fixed size for all frames in pool
+	pool sync.Pool
+	size int // Fixed size for all frames in pool
 }
 
 func NewFramePool(size int) *FramePool {
 	return &FramePool{
 		pool: sync.Pool{
 			New: func() interface{} {
-				buf := make([]byte, size)
-				return (*[]byte)(&buf)
+				return make([]byte, 0, size)
 			},
 		},
 		size: size,
@@ -28,26 +27,24 @@ func NewFramePool(size int) *FramePool {
 
 // Get retrieves a frame buffer from the pool (or allocates if empty)
 func (p *FramePool) Get() []byte {
-	b := p.pool.Get().(*[]byte)
-	*b = (*b)[:0] // Reset length, preserve capacity
-	return *b
+	b := p.pool.Get().([]byte)
+	return b[:0]
 }
 
 // Put returns a frame buffer to the pool for reuse
 func (p *FramePool) Put(b []byte) {
-	if cap(*b) != p.size {
+	if cap(b) != p.size {
 		// Wrong size - discard to avoid pool poisoning
 		return
 	}
-	p.pool.Put(b)
+	p.pool.Put(b[:0])
 }
 
 // GetWithLen retrieves a frame with specific length (falls back to allocation if wrong size)
 func (p *FramePool) GetWithLen(size int) []byte {
 	if size == p.size {
-		b := p.pool.Get().(*[]byte)
-		*b = (*b)[:0]
-		return *b
+		b := p.pool.Get().([]byte)
+		return b[:0]
 	}
 	// Fall back to allocation for non-standard sizes
 	buf := make([]byte, size)
