@@ -9,5 +9,5 @@ members = [
     "bench",
 ]
 
-[package.metadata]
+[workspace.metadata]
 description = "Rust rewrite workspace for SMIP-MWP (scaffold)"
