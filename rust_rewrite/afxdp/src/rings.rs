@@ -104,14 +104,12 @@ impl RingMmap {
                 let idx = ((prod as usize + i) & mask) as usize;
                 let d_off = tx_desc_off + (idx * std::mem::size_of::<u64>()) as u64;
                 // write address
-                let mut_self = &mut *(self as *const _ as *mut Self);
-                mut_self.write_u64_at(d_off, _addrs[i]);
+                self.write_u64_at(d_off, _addrs[i]);
             }
 
             // advance producer
             let new_prod = prod.wrapping_add(to_push as u32);
-            let mut_self = &mut *(self as *const _ as *mut Self);
-            mut_self.write_u32_at(tx_meta_off, new_prod);
+            self.write_u32_at(tx_meta_off, new_prod);
             to_push
         }
     }
@@ -139,6 +137,12 @@ impl RingMmap {
         let p = self.base.as_ptr().add(off as usize) as *mut u32;
         std::ptr::write_unaligned(p, v.to_le());
     }
+    /// Return a borrow of the mapped slice at offset/len.
+    /// Safety: caller must ensure the requested range is valid within the mmap.
+    pub unsafe fn slice_at(&self, off: u64, len: usize) -> &'static [u8] {
+        std::slice::from_raw_parts(self.base.as_ptr().add(off as usize), len)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -198,12 +202,5 @@ mod tests {
             assert_eq!(prod, 3);
         }
         drop(buf);
-    }
-}
-
-    /// Return a borrow of the mapped slice at offset/len.
-    /// Safety: caller must ensure the requested range is valid within the mmap.
-    pub unsafe fn slice_at(&self, off: u64, len: usize) -> &'static [u8] {
-        std::slice::from_raw_parts(self.base.as_ptr().add(off as usize), len)
     }
 }

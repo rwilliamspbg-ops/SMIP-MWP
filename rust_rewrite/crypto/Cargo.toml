@@ -11,6 +11,7 @@ aes-gcm = "0.10"
 chacha20poly1305 = "0.10"
 thiserror = "1.0"
 parking_lot = "0.12"
+once_cell = "1.21"
 
 [dev-dependencies]
 rand = "0.8"
