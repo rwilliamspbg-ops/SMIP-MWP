@@ -1,3 +1,9 @@
+import Smip.RoutingSpec
+import Smip.RouterModel
+import Smip.CryptoSpec
+import Smip.AFXDPSpec
+import Smip.WireSpec
+
 namespace Smip
 
 /-!
@@ -458,7 +464,7 @@ theorem build_fmap_from_fin_keys_subset_nodes_fin {n : Nat} (nodes_fin : Fin n �
     simp [build_fmap_from_fin]
     -- expand fin_range
     let head := ⟨0, by simp⟩
-    let tail := (fin_range k).map (fun i => ⟨i.val + 1, by sorry⟩)
+    let tail := (fin_range k).map (fun i => ⟨i.val + 1, by exact Nat.succ_lt_succ i.isLt⟩)
     -- instead of unfolding complicated map, reason structurally on the fold
     -- fold yields either head inserted or not; inspect membership
     have : (build_fmap_from_fin (fun i => nodes_fin i) neighbors dist d).map Prod.fst =
