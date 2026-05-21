@@ -5,6 +5,7 @@
 
 pub mod umem;
 pub mod socket;
+pub mod rings;
 
 pub use socket::{AfXdpSocket, MockSocket};
 // afxdp crate: XDP integration and mocks (scaffold)

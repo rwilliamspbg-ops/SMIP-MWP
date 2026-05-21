@@ -55,7 +55,7 @@ mod real {
         // Pointer to the mmap'ed ring area (kept alive for future ring-based ops)
         ring_map_ptr: *mut libc::c_void,
         ring_map_size: usize,
-        mmap_offsets: Option<XskMmapOffsets>,
+        mmap_offsets: Option<crate::rings::XskMmapOffsets>,
     }
 
     impl RealSocket {
@@ -148,26 +148,14 @@ mod real {
 
             // Query mmap offsets for rings using XDP_MMAP_OFFSETS
             const XDP_MMAP_OFFSETS: libc::c_int = 7;
-            #[repr(C)]
-            struct XskMmapOffsets {
-                rx: u64,
-                rx_desc: u64,
-                tx: u64,
-                tx_desc: u64,
-                fill: u64,
-                fill_desc: u64,
-                comp: u64,
-                comp_desc: u64,
-            }
-
-            let mut offs = XskMmapOffsets { rx:0, rx_desc:0, tx:0, tx_desc:0, fill:0, fill_desc:0, comp:0, comp_desc:0 };
+            let mut offs = crate::rings::XskMmapOffsets { rx:0, rx_desc:0, tx:0, tx_desc:0, fill:0, fill_desc:0, comp:0, comp_desc:0 };
             let mut optlen = std::mem::size_of::<XskMmapOffsets>() as libc::socklen_t;
             let rc2 = unsafe {
                 libc::getsockopt(
                     fd,
                     SOL_XDP,
                     XDP_MMAP_OFFSETS,
-                    &mut offs as *mut XskMmapOffsets as *mut libc::c_void,
+                    &mut offs as *mut crate::rings::XskMmapOffsets as *mut libc::c_void,
                     &mut optlen as *mut libc::socklen_t,
                 )
             };
