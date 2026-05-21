@@ -56,4 +56,28 @@ impl RingMmap {
         // TODO: implement descriptor writes to TX ring
         0
     }
+
+    /// Low-level read of a u32 value at an mmap offset (little-endian).
+    pub unsafe fn read_u32_at(&self, off: u64) -> u32 {
+        let p = self.base.as_ptr().add(off as usize) as *const u32;
+        u32::from_le(std::ptr::read_unaligned(p))
+    }
+
+    /// Low-level read of a u64 value at an mmap offset (little-endian).
+    pub unsafe fn read_u64_at(&self, off: u64) -> u64 {
+        let p = self.base.as_ptr().add(off as usize) as *const u64;
+        u64::from_le(std::ptr::read_unaligned(p))
+    }
+
+    /// Low-level write of a u32 value at an mmap offset (little-endian).
+    pub unsafe fn write_u32_at(&mut self, off: u64, v: u32) {
+        let p = self.base.as_ptr().add(off as usize) as *mut u32;
+        std::ptr::write_unaligned(p, v.to_le());
+    }
+
+    /// Return a borrow of the mapped slice at offset/len.
+    /// Safety: caller must ensure the requested range is valid within the mmap.
+    pub unsafe fn slice_at(&self, off: u64, len: usize) -> &'static [u8] {
+        std::slice::from_raw_parts(self.base.as_ptr().add(off as usize), len)
+    }
 }
