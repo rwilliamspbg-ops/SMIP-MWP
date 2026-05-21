@@ -2,6 +2,8 @@ use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
 
+pub type HybridKeyExchange = HybridKEX;
+
 pub struct HybridKEX {
     pub x25519_pub: Vec<u8>,
     pub x25519_priv: Vec<u8>,
@@ -23,13 +25,6 @@ impl HybridKEX {
         Ok(Self { x25519_pub: xpub, x25519_priv: xpriv, mlkem_pub: mpub, mlkem_priv: mpriv })
     }
 
-    pub fn public_key(&self) -> Vec<u8> {
-        let mut pubk = Vec::with_capacity(self.x25519_pub.len()+self.mlkem_pub.len());
-        pubk.extend_from_slice(&self.x25519_pub);
-        pubk.extend_from_slice(&self.mlkem_pub);
-        pubk
-    }
-
     pub fn handshake(&self, peer_pub: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         if peer_pub.is_empty() { return Err("empty peer pubkey".into()) }
         let x_shared = compute_x25519_shared_secret(&self.x25519_priv, peer_pub);
@@ -37,6 +32,17 @@ impl HybridKEX {
         mlkem_shared.copy_from_slice(&x_shared[..32.min(x_shared.len())]);
         let combined = derive_combined_secret(&x_shared, &mlkem_shared);
         Ok(combined)
+    }
+
+    pub fn public_key(&self) -> Vec<u8> {
+        self.public_key_bytes()
+    }
+
+    fn public_key_bytes(&self) -> Vec<u8> {
+        let mut pubk = Vec::with_capacity(self.x25519_pub.len() + self.mlkem_pub.len());
+        pubk.extend_from_slice(&self.x25519_pub);
+        pubk.extend_from_slice(&self.mlkem_pub);
+        pubk
     }
 }
 
