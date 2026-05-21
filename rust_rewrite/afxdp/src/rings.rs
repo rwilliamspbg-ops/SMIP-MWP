@@ -129,16 +129,77 @@ impl RingMmap {
     }
 
     /// Low-level write of a u64 value at an mmap offset (little-endian).
-    pub unsafe fn write_u64_at(&mut self, off: u64, v: u64) {
+    pub unsafe fn write_u64_at(&self, off: u64, v: u64) {
         let p = self.base.as_ptr().add(off as usize) as *mut u64;
         std::ptr::write_unaligned(p, v.to_le());
     }
 
     /// Low-level write of a u32 value at an mmap offset (little-endian).
-    pub unsafe fn write_u32_at(&mut self, off: u64, v: u32) {
+    pub unsafe fn write_u32_at(&self, off: u64, v: u32) {
         let p = self.base.as_ptr().add(off as usize) as *mut u32;
         std::ptr::write_unaligned(p, v.to_le());
     }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rx_pop_advances_consumer() {
+        let mut buf = vec![0u8; 4096].into_boxed_slice();
+        let ptr = buf.as_mut_ptr();
+        let offs = XskMmapOffsets { rx: 0, rx_desc: 128, tx: 0, tx_desc: 128 + 64, fill: 0, fill_desc: 128 + 128, comp: 0, comp_desc: 0 };
+        let ring = unsafe { RingMmap::new(ptr as *mut libc::c_void, buf.len(), offs) };
+
+        unsafe {
+            // set producer=4, consumer=0
+            ring.write_u32_at(offs.rx, 4);
+            ring.write_u32_at(offs.rx + 4, 0);
+            // write 4 descriptors
+            for i in 0..4u64 {
+                ring.write_u64_at(offs.rx_desc + (i as u64 * 8), 100 + i * 100);
+            }
+        }
+
+        let popped = ring.rx_pop(2);
+        assert_eq!(popped.len(), 2);
+        assert_eq!(popped[0], 100);
+        assert_eq!(popped[1], 200);
+
+        let cons = unsafe { ring.read_u32_at(offs.rx + 4) };
+        assert_eq!(cons, 2);
+        drop(buf);
+    }
+
+    #[test]
+    fn test_tx_push_writes_descriptors_and_advances_prod() {
+        let mut buf = vec![0u8; 4096].into_boxed_slice();
+        let ptr = buf.as_mut_ptr();
+        let offs = XskMmapOffsets { rx: 0, rx_desc: 128, tx: 64, tx_desc: 256, fill: 0, fill_desc: 256 + 8*8, comp: 0, comp_desc: 0 };
+        let ring = unsafe { RingMmap::new(ptr as *mut libc::c_void, buf.len(), offs) };
+
+        unsafe {
+            // set prod=0, cons=0
+            ring.write_u32_at(offs.tx, 0);
+            ring.write_u32_at(offs.tx + 4, 0);
+        }
+
+        let addrs = vec![1000u64, 2000u64, 3000u64];
+        let pushed = ring.tx_push(&addrs);
+        assert_eq!(pushed, 3);
+
+        unsafe {
+            // verify descriptors written
+            for i in 0..3usize {
+                let v = ring.read_u64_at(offs.tx_desc + (i * 8) as u64);
+                assert_eq!(v, addrs[i]);
+            }
+            let prod = ring.read_u32_at(offs.tx) as u32;
+            assert_eq!(prod, 3);
+        }
+        drop(buf);
+    }
+}
 
     /// Return a borrow of the mapped slice at offset/len.
     /// Safety: caller must ensure the requested range is valid within the mmap.
