@@ -55,15 +55,15 @@ jobs:
       - name: Show rustc
         run: rustc --version && cargo --version
 
-      - name: Try MoonGen harness, fallback to `cargo bench`
+      - name: Try MoonGen harness, fallback to bench-runner
         working-directory: .
         run: |
           if command -v MoonGen >/dev/null 2>&1 || command -v moongen >/dev/null 2>&1; then
             echo "MoonGen found — attempting to run moongen/multi_queue_send.lua (dry-run)"
-            # Attempt a dry-run; real execution requires DPDK and privileges which CI likely doesn't have
             echo "Would run: MoonGen moongen/multi_queue_send.lua"
           else
-            echo "MoonGen not available on runner, running cargo bench (may be no-op)"
+            echo "MoonGen not available on runner, running bench runner binary"
             cd rust_rewrite
-            cargo bench --all --verbose || echo "cargo bench failed or no benches present"
+            # run the simple deterministic bench runner we added; use release for stable timings
+            cargo run -p bench --manifest-path Cargo.toml --release || echo "bench runner failed"
           fi
