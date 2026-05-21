@@ -138,6 +138,7 @@ impl Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::SystemTime;
 
     #[test]
     fn update_and_lookup() {
@@ -160,5 +161,24 @@ mod tests {
         let choice = t.predictive_next_hop(src, dst, 7).unwrap();
         // choice should be one of the next hop ids
         assert!(choice == [9u8;32] || choice == [8u8;32]);
+    }
+
+    #[test]
+    fn remove_route_and_lookup_policy() {
+        let t = Table::new();
+        let dest = [5u8; 32];
+        let nh = [7u8; 32];
+        t.update_route(RouteEntry { dest_id: dest, next_hop_id: nh, metric: 1, last_seen: SystemTime::now() });
+        assert_eq!(t.lookup_or_predict([1u8; 32], dest, 0).unwrap(), nh);
+        t.remove_route(dest);
+        assert!(t.lookup_next_hop(dest, 0).is_none());
+
+        let router = Router::new();
+        let policy = router.lookup_policy([1u8; 32], [2u8; 32], 7).expect("default policy");
+        assert_eq!(policy.queue_id, 0);
+        router.update_policy([1u8; 32], [2u8; 32], 7, [9u8; 32], 3);
+        let updated = router.lookup_policy([1u8; 32], [2u8; 32], 7).expect("updated policy");
+        assert_eq!(updated.queue_id, 3);
+        assert_eq!(updated.next_hop_id, [9u8; 32]);
     }
 }

@@ -1,55 +1,86 @@
-// datapath crate: forwarder core
-
-use crate::socket::XdpSocket;
-use crypto::session::HybridSession;
+use crypto::session::{HybridSession, SessionError};
 use routing::Table;
-use wire::Header;
+use wire::{Header, HEADER_SIZE};
+
+pub use socket::XdpSocket;
 
 pub struct Forwarder {
     pub routes: Table,
+    session_secret: Vec<u8>,
+    session_info: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ForwarderStats {
+    pub received: usize,
+    pub forwarded: usize,
+    pub encrypted: usize,
+    pub route_misses: usize,
 }
 
 impl Forwarder {
     pub fn new(routes: Table) -> Self {
-        Self { routes }
+        Self::with_session(routes, vec![0x42; 32], b"datapath-default".to_vec())
     }
 
-    // Process a batch of frames from a socket.
-    // For each frame: parse header, lookup next hop, and (if session exists) encrypt.
-    pub fn process_batch(&self, sock: &mut dyn XdpSocket) {
+    pub fn with_session(routes: Table, session_secret: Vec<u8>, session_info: Vec<u8>) -> Self {
+        Self { routes, session_secret, session_info }
+    }
+
+    pub fn process_batch(&self, sock: &mut dyn XdpSocket) -> ForwarderStats {
         let frames = sock.poll(64);
-        if frames.is_empty() {
-            return;
-        }
         let mut out: Vec<Vec<u8>> = Vec::with_capacity(frames.len());
-        for mut pkt in frames {
+        let mut stats = ForwarderStats {
+            received: frames.len(),
+            ..ForwarderStats::default()
+        };
+
+        if frames.is_empty() {
+            return stats;
+        }
+
+        let session = HybridSession::new(&self.session_secret, &self.session_info).ok();
+
+        for pkt in frames {
+            let mut forwarded = false;
+
             if let Ok(h) = Header::parse(&pkt) {
-                // attempt route lookup
-                if let Some(_nh) = self.routes.lookup_or_predict(h.src_id, h.dst_id, h.flow_label) {
-                    // For demo: if payload non-empty, encrypt using a derived session
-                    if h.length as usize > 0 {
-                        // derive a dummy combined secret from kex path; here reuse session-info
-                        let combined = vec![0u8;32];
-                        if let Ok(sess) = HybridSession::new(&combined, &h.src_id) {
-                            let payload_offset = wire::HEADER_SIZE;
-                            if pkt.len() >= payload_offset {
-                                let payload = &pkt[payload_offset..];
-                                if let Ok(ct) = sess.encrypt(payload, h.seq_num) {
-                                    // build new packet = header + ciphertext
-                                    let mut newpkt = pkt[..payload_offset].to_vec();
+                if self.routes.lookup_or_predict(h.src_id, h.dst_id, h.flow_label).is_some() {
+                    if let Some(session) = &session {
+                        if pkt.len() >= HEADER_SIZE && h.length as usize > 0 {
+                            let payload = &pkt[HEADER_SIZE..];
+                            match session.encrypt(payload, h.seq_num) {
+                                Ok(ct) => {
+                                    let mut newpkt = pkt[..HEADER_SIZE].to_vec();
                                     newpkt.extend_from_slice(&ct);
                                     out.push(newpkt);
-                                    continue;
+                                    stats.encrypted += 1;
+                                    forwarded = true;
+                                }
+                                Err(SessionError::AuthenticationFailed)
+                                | Err(SessionError::PayloadTooLarge)
+                                | Err(SessionError::CiphertextTooShort)
+                                | Err(SessionError::AeadError)
+                                | Err(SessionError::BufferTooSmall)
+                                | Err(SessionError::InsufficientCapacity) => {
+                                    stats.route_misses += 1;
                                 }
                             }
                         }
                     }
+                } else {
+                    stats.route_misses += 1;
                 }
             }
-            // default: forward original packet
-            out.push(pkt);
+
+            if !forwarded {
+                out.push(pkt);
+                stats.forwarded += 1;
+            }
         }
+
         let _ = sock.send(out);
+        stats
     }
 }
 
@@ -65,8 +96,9 @@ pub mod socket {
 mod tests {
     use super::*;
     use crate::socket::XdpSocket;
-    use routing::Table;
+    use routing::{RouteEntry, Table};
     use wire::Header;
+    use std::time::SystemTime;
 
     struct MockSocket {
         frames: Vec<Vec<u8>>,
@@ -83,6 +115,12 @@ mod tests {
     #[test]
     fn forwarder_encrypts_and_sends() {
         let rt = Table::new();
+        rt.update_route(RouteEntry {
+            dest_id: [2u8;32],
+            next_hop_id: [3u8;32],
+            metric: 1,
+            last_seen: SystemTime::now(),
+        });
         let fwd = Forwarder::new(rt);
 
         // build header + payload
@@ -92,8 +130,9 @@ mod tests {
         // append payload
         buf[wire::HEADER_SIZE..wire::HEADER_SIZE+4].copy_from_slice(&[0x1,0x2,0x3,0x4]);
         let mut sock = MockSocket::new(vec![buf]);
-        fwd.process_batch(&mut sock);
-        // ensure something was sent
+        let stats = fwd.process_batch(&mut sock);
+        assert_eq!(stats.received, 1);
+        assert_eq!(stats.encrypted, 1);
         assert!(!sock.sent.is_empty());
     }
 }

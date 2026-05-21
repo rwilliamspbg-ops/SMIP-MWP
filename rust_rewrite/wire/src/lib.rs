@@ -146,4 +146,44 @@ mod tests {
         assert_eq!(parsed.seq_num, h.seq_num);
         assert_eq!(parsed.length, h.length);
     }
+
+    #[test]
+    fn header_view_round_trip_and_bounds() {
+        let src = [1u8; 32];
+        let dst = [2u8; 32];
+        let sid = [3u8; 16];
+        let h = Header {
+            src_id: src,
+            dst_id: dst,
+            flow_label: 0x11223344,
+            seq_num: 0x55667788,
+            session_id: sid,
+            flags: 0x9,
+            length: 64,
+        };
+
+        let mut buf = Header::new_header_buffer(h.length as usize);
+        h.marshal_into(&mut buf).unwrap();
+
+        let mut view = HeaderView::view(&mut buf).unwrap();
+        assert_eq!(view.src_id(), &src);
+        assert_eq!(view.dst_id(), &dst);
+        assert_eq!(view.flow_label(), h.flow_label);
+        assert_eq!(view.seq_num(), h.seq_num);
+        assert_eq!(view.session_id(), &sid);
+        assert_eq!(view.flags(), h.flags);
+        assert_eq!(view.length(), h.length);
+
+        view.set_flags(0x44);
+        view.set_length(128);
+        assert_eq!(Header::parse(&buf).unwrap().flags, 0x44);
+        assert_eq!(Header::parse(&buf).unwrap().length, 128);
+    }
+
+    #[test]
+    fn rejects_small_buffer() {
+        let mut buf = vec![0u8; HEADER_SIZE - 1];
+        assert!(Header::parse(&buf).is_err());
+        assert!(HeaderView::view(&mut buf).is_err());
+    }
 }
