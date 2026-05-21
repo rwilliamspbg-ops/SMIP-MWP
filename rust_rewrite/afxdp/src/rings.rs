@@ -47,14 +47,73 @@ impl RingMmap {
 
     /// Placeholder: pop up to `max` RX frame descriptors and return their offsets
     pub fn rx_pop(&self, _max: usize) -> Vec<u64> {
-        // TODO: implement descriptor reads from ring memory
-        Vec::new()
+        unsafe {
+            let offs = self.offsets;
+            let rx_meta_off = offs.rx;
+            let rx_desc_off = offs.rx_desc;
+
+            // read producer and consumer indices
+            let prod = self.read_u32_at(rx_meta_off) as u32;
+            let cons = self.read_u32_at(rx_meta_off + 4) as u32;
+            let avail = prod.wrapping_sub(cons) as usize;
+            if avail == 0 { return Vec::new(); }
+
+            // derive capacity from descriptor region length (tx_desc - rx_desc)
+            let desc_region_bytes = (offs.tx_desc as i128 - offs.rx_desc as i128) as usize;
+            let capacity = desc_region_bytes / std::mem::size_of::<u64>();
+            let mask = capacity.saturating_sub(1);
+
+            let to_take = std::cmp::min(avail, _max);
+            let mut out = Vec::with_capacity(to_take);
+            for i in 0..to_take {
+                let idx = ((cons as usize + i) & mask) as usize;
+                let d_off = rx_desc_off + (idx * std::mem::size_of::<u64>()) as u64;
+                let desc = self.read_u64_at(d_off);
+                out.push(desc);
+            }
+
+            // advance consumer index
+            let new_cons = cons.wrapping_add(to_take as u32);
+            self.write_u32_at(rx_meta_off + 4, new_cons);
+
+            out
+        }
     }
 
     /// Placeholder: push `addrs` into the TX ring for transmission
     pub fn tx_push(&self, _addrs: &[u64]) -> usize {
-        // TODO: implement descriptor writes to TX ring
-        0
+        unsafe {
+            let offs = self.offsets;
+            let tx_meta_off = offs.tx;
+            let tx_desc_off = offs.tx_desc;
+
+            let prod = self.read_u32_at(tx_meta_off) as u32;
+            let cons = self.read_u32_at(tx_meta_off + 4) as u32;
+
+            // compute capacity from descriptor region length (fill_desc - tx_desc)
+            let desc_region_bytes = (offs.fill_desc as i128 - offs.tx_desc as i128) as usize;
+            let capacity = desc_region_bytes / std::mem::size_of::<u64>();
+            let mask = capacity.saturating_sub(1);
+
+            let used = prod.wrapping_sub(cons) as usize;
+            let free = capacity.saturating_sub(used);
+            if free == 0 { return 0; }
+
+            let to_push = std::cmp::min(free, _addrs.len());
+            for i in 0..to_push {
+                let idx = ((prod as usize + i) & mask) as usize;
+                let d_off = tx_desc_off + (idx * std::mem::size_of::<u64>()) as u64;
+                // write address
+                let mut_self = &mut *(self as *const _ as *mut Self);
+                mut_self.write_u64_at(d_off, _addrs[i]);
+            }
+
+            // advance producer
+            let new_prod = prod.wrapping_add(to_push as u32);
+            let mut_self = &mut *(self as *const _ as *mut Self);
+            mut_self.write_u32_at(tx_meta_off, new_prod);
+            to_push
+        }
     }
 
     /// Low-level read of a u32 value at an mmap offset (little-endian).
@@ -67,6 +126,12 @@ impl RingMmap {
     pub unsafe fn read_u64_at(&self, off: u64) -> u64 {
         let p = self.base.as_ptr().add(off as usize) as *const u64;
         u64::from_le(std::ptr::read_unaligned(p))
+    }
+
+    /// Low-level write of a u64 value at an mmap offset (little-endian).
+    pub unsafe fn write_u64_at(&mut self, off: u64, v: u64) {
+        let p = self.base.as_ptr().add(off as usize) as *mut u64;
+        std::ptr::write_unaligned(p, v.to_le());
     }
 
     /// Low-level write of a u32 value at an mmap offset (little-endian).
