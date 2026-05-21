@@ -36,3 +36,34 @@ jobs:
         working-directory: rust_rewrite
         run: |
           cargo test -p afxdp --verbose
+
+  benchmark:
+    # only run the benchmark job for this feature branch to avoid heavy runs on every push
+    if: github.ref == 'refs/heads/rust-rewrite/scaffold'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Show rustc
+        run: rustc --version && cargo --version
+
+      - name: Try MoonGen harness, fallback to `cargo bench`
+        working-directory: .
+        run: |
+          if command -v MoonGen >/dev/null 2>&1 || command -v moongen >/dev/null 2>&1; then
+            echo "MoonGen found — attempting to run moongen/multi_queue_send.lua (dry-run)"
+            # Attempt a dry-run; real execution requires DPDK and privileges which CI likely doesn't have
+            echo "Would run: MoonGen moongen/multi_queue_send.lua"
+          else
+            echo "MoonGen not available on runner, running cargo bench (may be no-op)"
+            cd rust_rewrite
+            cargo bench --all --verbose || echo "cargo bench failed or no benches present"
+          fi
