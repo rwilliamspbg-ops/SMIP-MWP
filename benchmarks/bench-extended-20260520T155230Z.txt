@@ -1,0 +1,11 @@
+goos: linux
+goarch: amd64
+pkg: smip-mwp/internal/datapath/afxdp
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkPacketAllocate-4                      	1000000000	         0.3732 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPacketPool-4                          	1000000000	        15.03 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRunXDPLoop_WithCrypto-4               	26762966	      1344 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRunXDPLoop_MultiWorker_WithCrypto-4   	30360777	      1167 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRunXDPLoop_NoCrypto-4                 	30487299	      1180 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	smip-mwp/internal/datapath/afxdp	128.158s

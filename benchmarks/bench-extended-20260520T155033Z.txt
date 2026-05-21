@@ -1,0 +1,3 @@
+Running custom command: --benchtime=30s -- go test ./internal/datapath/afxdp -bench . -benchmem -run ^$ -count=1 -cpuprofile=benchmarks/bench-extended-20260520T155033Z-cpu.prof -memprofile=benchmarks/bench-extended-20260520T155033Z-mem.prof
++ --benchtime=30s -- go test ./internal/datapath/afxdp -bench . -benchmem -run '^$' -count=1 -cpuprofile=benchmarks/bench-extended-20260520T155033Z-cpu.prof -memprofile=benchmarks/bench-extended-20260520T155033Z-mem.prof
+./scripts/bench.sh: line 90: --benchtime=30s: command not found

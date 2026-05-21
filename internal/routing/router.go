@@ -33,6 +33,8 @@ type RouteEntry struct {
 type Table struct {
 	mu      sync.RWMutex
 	entries map[[32]byte]RouteEntry
+	// cached sorted keys to avoid allocating and sorting on every predictive lookup
+	sortedKeys [][32]byte
 }
 
 // NewTable creates an empty routing table.
@@ -46,6 +48,12 @@ func (t *Table) UpdateRoute(e RouteEntry) {
 	defer t.mu.Unlock()
 	e.LastSeen = time.Now()
 	t.entries[e.DestID] = e
+	// rebuild cached sorted keys (updates are expected to be infrequent)
+	t.sortedKeys = make([][32]byte, 0, len(t.entries))
+	for k := range t.entries {
+		t.sortedKeys = append(t.sortedKeys, k)
+	}
+	sort.Slice(t.sortedKeys, func(i, j int) bool { return string(t.sortedKeys[i][:]) < string(t.sortedKeys[j][:]) })
 }
 
 // RemoveRoute removes a route by destination ID.
@@ -53,6 +61,12 @@ func (t *Table) RemoveRoute(dest [32]byte) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	delete(t.entries, dest)
+	// rebuild cached sorted keys after removal
+	t.sortedKeys = make([][32]byte, 0, len(t.entries))
+	for k := range t.entries {
+		t.sortedKeys = append(t.sortedKeys, k)
+	}
+	sort.Slice(t.sortedKeys, func(i, j int) bool { return string(t.sortedKeys[i][:]) < string(t.sortedKeys[j][:]) })
 }
 
 // LookupNextHop returns an exact-match next-hop for dstID if present.
@@ -79,12 +93,11 @@ func (t *Table) PredictiveNextHop(srcID, dstID [32]byte, flowLabel uint32) (next
 	if e, found := t.entries[dstID]; found {
 		return e.NextHopID, true
 	}
-	// Build a stable list of keys
-	keys := make([][32]byte, 0, len(t.entries))
-	for k := range t.entries {
-		keys = append(keys, k)
+	// Use cached sorted keys to avoid per-call allocations and sorts.
+	keys := t.sortedKeys
+	if len(keys) == 0 {
+		return [32]byte{}, false
 	}
-	sort.Slice(keys, func(i, j int) bool { return string(keys[i][:]) < string(keys[j][:]) })
 
 	h := sha256.New()
 	h.Write(srcID[:])
@@ -92,7 +105,8 @@ func (t *Table) PredictiveNextHop(srcID, dstID [32]byte, flowLabel uint32) (next
 	var b [4]byte
 	binary.BigEndian.PutUint32(b[:], flowLabel)
 	h.Write(b[:])
-	sum := h.Sum(nil)
+	var sumBuf [32]byte
+	sum := h.Sum(sumBuf[:0])
 	idx := binary.BigEndian.Uint32(sum[:4]) % uint32(len(keys))
 	chosen := t.entries[keys[idx]]
 	return chosen.NextHopID, true
