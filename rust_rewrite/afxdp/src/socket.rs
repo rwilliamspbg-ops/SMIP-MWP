@@ -56,17 +56,147 @@ mod real {
 
     impl RealSocket {
         pub fn new(ifname: &str, queue_id: u32, umem_frame_size: usize, umem_pages: usize) -> Result<Self, AfXdpError> {
-            // Resolve interface index and create AF_XDP socket, bind to queue, etc.
-            // Implementing a fully working AF_XDP stack requires careful libc calls
-            // and ring setup — this constructor prepares UMEM and opens a placeholder
-            // socket FD. The detailed setup is left as the next step.
+            // Allocate UMEM backing region
             let umem = Umem::new(umem_frame_size * umem_pages, umem_frame_size)
                 .map_err(|e| AfXdpError::Init(format!("umem alloc: {}", e)))?;
-            // create a raw socket placeholder (AF_XDP sock creation will go here)
-            let fd = unsafe { libc::socket(libc::AF_XDP, libc::SOCK_RAW, 0) };
+
+            // Create AF_XDP socket
+            const AF_XDP: libc::c_int = 44; // PF_XDP / AF_XDP
+            let fd = unsafe { libc::socket(AF_XDP, libc::SOCK_RAW, 0) };
             if fd < 0 {
                 return Err(AfXdpError::Init(std::io::Error::last_os_error().to_string()));
             }
+
+            // Resolve interface index
+            let ifc = std::ffi::CString::new(ifname).map_err(|e| AfXdpError::Init(e.to_string()))?;
+            let ifindex = unsafe { libc::if_nametoindex(ifc.as_ptr()) };
+            if ifindex == 0 {
+                unsafe { libc::close(fd); }
+                return Err(AfXdpError::Init(format!("if_nametoindex failed for {}", ifname)));
+            }
+
+            // Bind the socket to the interface/queue using sockaddr_xdp
+            #[repr(C)]
+            struct SockAddrXdp {
+                sxdp_family: libc::sa_family_t,
+                sxdp_ifindex: u32,
+                sxdp_queue_id: u32,
+                sxdp_flags: u32,
+                sxdp_reserved: [u8; 12],
+            }
+
+            let sa = SockAddrXdp {
+                sxdp_family: AF_XDP as libc::sa_family_t,
+                sxdp_ifindex: ifindex,
+                sxdp_queue_id: queue_id,
+                sxdp_flags: 0,
+                sxdp_reserved: [0u8; 12],
+            };
+
+            let ret = unsafe {
+                libc::bind(
+                    fd,
+                    &sa as *const SockAddrXdp as *const libc::sockaddr,
+                    std::mem::size_of::<SockAddrXdp>() as libc::socklen_t,
+                )
+            };
+            if ret < 0 {
+                let err = std::io::Error::last_os_error().to_string();
+                unsafe { libc::close(fd); }
+                return Err(AfXdpError::Init(format!("bind failed: {}", err)));
+            }
+
+            // Register UMEM with socket via setsockopt XDP_UMEM_REG
+            // The numeric values below mirror the kernel headers; they are stable across
+            // modern kernels but may require adjustment for very old kernels.
+            const SOL_XDP: libc::c_int = 283; // socket option level for XDP
+            const XDP_UMEM_REG: libc::c_int = 1;
+
+            #[repr(C)]
+            struct XdpUmemReg {
+                addr: u64,
+                len: u64,
+                chunk_size: u32,
+                headroom: u32,
+            }
+
+            let reg = XdpUmemReg {
+                addr: umem.base_ptr() as u64,
+                len: umem.len() as u64,
+                chunk_size: umem.frame_size() as u32,
+                headroom: 0,
+            };
+
+            let rc = unsafe {
+                libc::setsockopt(
+                    fd,
+                    SOL_XDP,
+                    XDP_UMEM_REG,
+                    &reg as *const XdpUmemReg as *const libc::c_void,
+                    std::mem::size_of::<XdpUmemReg>() as libc::socklen_t,
+                )
+            };
+            if rc < 0 {
+                let err = std::io::Error::last_os_error().to_string();
+                unsafe { libc::close(fd); }
+                return Err(AfXdpError::Init(format!("setsockopt(UmemReg) failed: {}", err)));
+            }
+
+            // Query mmap offsets for rings using XDP_MMAP_OFFSETS
+            const XDP_MMAP_OFFSETS: libc::c_int = 7;
+            #[repr(C)]
+            struct XskMmapOffsets {
+                rx: u64,
+                rx_desc: u64,
+                tx: u64,
+                tx_desc: u64,
+                fill: u64,
+                fill_desc: u64,
+                comp: u64,
+                comp_desc: u64,
+            }
+
+            let mut offs = XskMmapOffsets { rx:0, rx_desc:0, tx:0, tx_desc:0, fill:0, fill_desc:0, comp:0, comp_desc:0 };
+            let mut optlen = std::mem::size_of::<XskMmapOffsets>() as libc::socklen_t;
+            let rc2 = unsafe {
+                libc::getsockopt(
+                    fd,
+                    SOL_XDP,
+                    XDP_MMAP_OFFSETS,
+                    &mut offs as *mut XskMmapOffsets as *mut libc::c_void,
+                    &mut optlen as *mut libc::socklen_t,
+                )
+            };
+            if rc2 < 0 {
+                let err = std::io::Error::last_os_error().to_string();
+                unsafe { libc::close(fd); }
+                return Err(AfXdpError::Init(format!("getsockopt(MMAP_OFFSETS) failed: {}", err)));
+            }
+
+            // mmap the combined area (RX/TX/FILL/COMP rings). The kernel exposes a single
+            // mmap region with offsets reported above; compute the required size.
+            let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+            let mmap_size = page_size * 16; // conservative default for ring backing
+            let map = unsafe {
+                libc::mmap(
+                    std::ptr::null_mut(),
+                    mmap_size,
+                    libc::PROT_READ | libc::PROT_WRITE,
+                    libc::MAP_SHARED | libc::MAP_LOCKED,
+                    fd,
+                    0,
+                )
+            };
+            if map == libc::MAP_FAILED {
+                let err = std::io::Error::last_os_error().to_string();
+                unsafe { libc::close(fd); }
+                return Err(AfXdpError::Init(format!("mmap rings failed: {}", err)));
+            }
+
+            // For demo purposes we don't fully implement ring cursors here. A full
+            // implementation would wrap the mapped memory with safe ring types and
+            // provide enqueue/dequeue helpers for RX/TX/FILL/COMP.
+
             Ok(RealSocket { ifname: ifname.to_string(), queue_id, fd, _umem: umem })
         }
     }
