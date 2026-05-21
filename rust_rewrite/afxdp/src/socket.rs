@@ -45,6 +45,8 @@ pub fn new_mock_socket(frames: Vec<Vec<u8>>) -> AfXdpSocket {
 mod real {
     use super::*;
     use crate::umem::Umem;
+    use crate::rings::RingMmap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::os::unix::io::RawFd;
 
     pub struct RealSocket {
@@ -56,6 +58,9 @@ mod real {
         ring_map_ptr: *mut libc::c_void,
         ring_map_size: usize,
         mmap_offsets: Option<crate::rings::XskMmapOffsets>,
+        ring: Option<RingMmap>,
+        // simple frame allocator index into UMEM frames
+        next_frame: AtomicUsize,
     }
 
     impl RealSocket {
@@ -189,7 +194,8 @@ mod real {
             // implementation would wrap the mapped memory with safe ring types and
             // provide enqueue/dequeue helpers for RX/TX/FILL/COMP.
 
-            Ok(RealSocket { ifname: ifname.to_string(), queue_id, fd, _umem: umem, ring_map_ptr: map, ring_map_size: mmap_size, mmap_offsets: Some(offs) })
+            let ring = unsafe { RingMmap::new(map, mmap_size, offs) };
+            Ok(RealSocket { ifname: ifname.to_string(), queue_id, fd, _umem: umem, ring_map_ptr: map, ring_map_size: mmap_size, mmap_offsets: Some(offs), ring: Some(ring), next_frame: AtomicUsize::new(0) })
         }
     }
 
@@ -204,45 +210,46 @@ mod real {
 
     impl datapath::socket::XdpSocket for RealSocket {
         fn poll(&mut self, max: usize) -> Vec<Vec<u8>> {
-            // Pragmatic fallback: use recv(2) with MSG_DONTWAIT to pull frames from
-            // the AF_XDP socket. This avoids implementing ring cursor logic here
-            // while providing a kernel-backed I/O path on platforms where AF_XDP
-            // delivers packets to the socket via recv.
-            let mut out = Vec::new();
-            for _ in 0..max {
-                // typical MTU-sized buffer
-                let mut buf = vec![0u8; 2048];
-                let ret = unsafe { libc::recv(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len(), libc::MSG_DONTWAIT) };
-                if ret <= 0 {
-                    // EAGAIN/EWOULDBLOCK -> no data
-                    break;
+            // Use ring-based RX if available
+            if let Some(rm) = &self.ring {
+                let descs = rm.rx_pop(max);
+                let mut out = Vec::with_capacity(descs.len());
+                for d in descs {
+                    // d is a UMEM frame address (offset). Copy whole frame_size bytes.
+                    let frame_size = self._umem.frame_size();
+                    let base = self._umem.base_ptr();
+                    unsafe {
+                        let src = base.add(d as usize);
+                        let slice = std::slice::from_raw_parts(src, frame_size);
+                        out.push(slice.to_vec());
+                    }
                 }
-                let n = ret as usize;
-                buf.truncate(n);
-                out.push(buf);
+                return out;
             }
-            out
+            // fallback to empty
+            Vec::new()
         }
         fn send(&mut self, pkts: Vec<Vec<u8>>) -> Result<(), ()> {
-            // Pragmatic transmit: call send(2) for each packet. A full ring-based
-            // implementation would enqueue descriptors into the TX ring and
-            // notify the kernel; this approach is simpler and works for many
-            // kernel configurations that accept send on AF_XDP sockets.
-            for pkt in pkts {
-                let mut sent = 0;
-                while sent < pkt.len() {
-                    let ret = unsafe { libc::send(self.fd, pkt[sent..].as_ptr() as *const libc::c_void, pkt.len() - sent, 0) };
-                    if ret < 0 {
-                        let err = std::io::Error::last_os_error();
-                        if err.kind() == std::io::ErrorKind::WouldBlock {
-                            // non-blocking and kernel busy; give up for now
-                            return Err(());
-                        }
-                        return Err(());
-                    }
-                    sent += ret as usize;
+            // Use ring-based TX if available
+            let ring = match &self.ring {
+                Some(r) => r,
+                None => return Err(()),
+            };
+
+            let mut addrs: Vec<u64> = Vec::with_capacity(pkts.len());
+            let frames = self._umem.len() / self._umem.frame_size();
+            for pkt in pkts.iter() {
+                let idx = self.next_frame.fetch_add(1, Ordering::Relaxed) % frames;
+                let off = idx * self._umem.frame_size();
+                unsafe {
+                    let dst = self._umem.base_ptr().add(off);
+                    std::ptr::copy_nonoverlapping(pkt.as_ptr(), dst, std::cmp::min(pkt.len(), self._umem.frame_size()));
                 }
+                addrs.push(off as u64);
             }
+
+            let pushed = ring.tx_push(&addrs);
+            if pushed == 0 { return Err(()); }
             Ok(())
         }
     }
