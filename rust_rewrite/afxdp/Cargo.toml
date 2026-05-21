@@ -17,10 +17,3 @@ libc = { version = "0.2", optional = true }
 default = ["mock"]
 mock = []
 real = ["nix", "libc"]
-[package]
-name = "afxdp"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-datapath = { path = "../datapath" }
