@@ -16,16 +16,19 @@ jobs:
       - name: Install elan (Lean version manager)
         run: |
           curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
-          echo "PATH=$HOME/.elan/bin:$PATH" >> $GITHUB_ENV
+          # Make elan/lake available to subsequent steps
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+          # Use full path to elan to avoid PATH race in the same step
+          $HOME/.elan/bin/elan default leanprover/lean4:stable
 
       - name: Lake build (Lean)
         working-directory: formal/lean4
-        run: lake build
+        run: $HOME/.elan/bin/lake build
 
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.20'
+          go-version: '1.25'
 
       - name: Run full Go tests
         run: |
