@@ -15,3 +15,10 @@ All notable changes to this project are documented in this file.
   - Crypto microbench highlights: `NewHybridSession_Cached` 545 ns/op; `EncryptInPlace` 833 ns/op
 - Added: `benchmarks/pprof/run_pprof_bench.sh`, `benchmarks/HARDWARE_VALIDATION_RUNBOOK.md`, TRex/MoonGen templates and QUIC run scripts.
 
+- Integrations and tooling updates (merged from `rust-rewrite/add-lake-generate-hkdf`):
+  - Add a Lake `exe` target `GenerateHKDFVectors` to run the Lean vector generator via `lake exe GenerateHKDFVectors`.
+  - CI now installs `elan` and runs the Lake `GenerateHKDFVectors` exe before generating and validating Go test vectors.
+  - Generator (`tools/leanvecgen`) updated to derive HKDF vectors from the production Go implementation to ensure generated tests match runtime behavior.
+  - Lean sources: small fixes to `CryptoHandshakeSpec` and `GenerateHKDFVectors` so the Lean generator builds under Lake.
+
+

@@ -401,6 +401,35 @@ func NewHybridSession(combinedSecret, sessionInfo []byte) (*HybridSession, error
 	return s, nil
 }
 
+// ExportDerivedSessionMaterial derives session key, nonceBase and seqMask and
+// returns them. This mirrors the HKDF expansion used by NewHybridSession.
+func ExportDerivedSessionMaterial(combinedSecret, sessionInfo []byte) (key []byte, nonceBase []byte, seqMask uint64, err error) {
+	if combinedSecret == nil || sessionInfo == nil {
+		return nil, nil, 0, fmt.Errorf("ExportDerivedSessionMaterial: inputs cannot be nil")
+	}
+	label := []byte(hkdfLabelSession)
+	info := append(label, sessionInfo...)
+	r := hkdf.New(sha256.New, combinedSecret, nil, info)
+
+	key = make([]byte, KeySize)
+	if _, err := io.ReadFull(r, key); err != nil {
+		return nil, nil, 0, fmt.Errorf("crypto: HKDF key derivation: %w", err)
+	}
+
+	nonceBaseArr := make([]byte, NonceSize)
+	if _, err := io.ReadFull(r, nonceBaseArr); err != nil {
+		return nil, nil, 0, fmt.Errorf("crypto: nonce base derivation: %w", err)
+	}
+
+	mask := make([]byte, 8)
+	if _, err := io.ReadFull(r, mask); err != nil {
+		return nil, nil, 0, fmt.Errorf("crypto: seqMask derivation: %w", err)
+	}
+
+	seqMask = binary.BigEndian.Uint64(mask)
+	return key, nonceBaseArr, seqMask, nil
+}
+
 // newAEAD selects AES-256-GCM when available, falling back to ChaCha20-Poly1305.
 func newAEAD(key []byte) (cipher.AEAD, error) {
 	block, err := aes.NewCipher(key)

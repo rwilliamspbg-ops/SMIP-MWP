@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, add-project-planning-docs ]
+    branches: [ main, rust-rewrite/scaffold ]
   pull_request:
     branches: [ main ]
 
@@ -16,70 +16,53 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.24'
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            $(go env GOPATH)/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+          go-version: '1.25'
 
       - name: Install Dependencies
         run: go mod download
+
+      - name: Install elan (official install script)
+        run: |
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+      - name: Setup Lean toolchain
+        run: |
+          elan default leanprover/lean4:stable
+      - name: Generate Lean HKDF vectors
+        working-directory: formal/lean4
+        run: |
+          lake exe GenerateHKDFVectors
+
+      - name: Generate tests from Lean vectors
+        run: |
+          go run -tags=tools ./tools/leanvecgen
 
       - name: Run tests
         run: go test ./... -v
 
-      - name: Run tests (race)
-        run: go test -race ./... -v
-
       - name: Go vet
         run: go vet ./...
 
-  benchmarks:
+  lean:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    needs: test
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.24'
-
-      - name: Install Dependencies
-        run: go mod download
-
-      - name: Run Benchmarks (crypto)
-        run: ./scripts/bench.sh --pprof -- go test ./internal/crypto -bench=. -benchmem -run ^$ -count=1
-
-      - name: Install Graphviz (for pprof SVG)
+      - uses: actions/checkout@v4
+      - name: Install elan (official install script)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y graphviz
-
-      - name: Build test binary for pprof
-        run: go test -c -o /tmp/crypto.test ./internal/crypto
-
-      - name: Generate SVG flamegraphs from CPU profiles
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+      - name: Setup Lean toolchain
         run: |
-          set -euo pipefail
-          for f in benchmarks/*cpu*.prof; do
-            [ -f "$f" ] || continue
-            base=$(basename "$f")
-            out="benchmarks/${base}.svg"
-            echo "Generating $out from $f"
-            /usr/local/go/bin/go tool pprof -svg /tmp/crypto.test "$f" > "$out" || true
-          done
-
-      - name: Upload benchmark artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmarks
-          path: |
-            benchmarks/**
+          elan default leanprover/lean4:stable
+      - name: Build with lake
+        working-directory: formal/lean4
+        run: |
+          lake build
+      - name: Reject proof placeholders
+        working-directory: formal/lean4
+        run: |
+          if grep -Rnw --include='*.lean' -E '\b(sorry|admit|axiom)\b' Lean; then
+            echo "Lean proof placeholders are not allowed in CI"
+            exit 1
+          fi
