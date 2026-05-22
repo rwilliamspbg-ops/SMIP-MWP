@@ -2,147 +2,118 @@
 
 [![CI](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/ci.yml/badge.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/ci.yml)
 [![Benchmarks](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/benchmarks.yml/badge.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/benchmarks.yml)
-[![Rust CI](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/ci-rust.yml/badge.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/ci-rust.yml)
 [![Lean Build](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/lean4.yml/badge.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/lean4.yml)
 [![Formal Verification](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/lean-formalization-gate.yml/badge.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/lean-formalization-gate.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/rwilliamspbg-ops/SMIP-MWP)](https://goreportcard.com/report/github.com/rwilliamspbg-ops/SMIP-MWP)
 [![Go Version](https://img.shields.io/badge/go-1.25-blue.svg)](https://golang.org)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/Sponsor%20Me-GitHub%20Sponsors-ea4aaa)](https://github.com/sponsors/rwilliamspbg-ops)
 
-<!-- Capability badges -->
-[![AF_XDP](https://img.shields.io/badge/AF_XDP-supported-brightgreen.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP)
-[![PQC](https://img.shields.io/badge/PQC-hybrid-blue.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP)
-[![Benchmarked](https://img.shields.io/badge/benchmarked-yes-green.svg)](benchmarks/)
-[![Observability](https://img.shields.io/badge/observability-prometheus-orange.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP)
-[![Build tag](https://img.shields.io/badge/build_tag-withafxdp-lightgrey.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP)
+SMIP-MWP is a formally verified, high-performance transport and routing protocol stack. The repository combines a Go control plane, AF_XDP fast-path plumbing, hybrid cryptographic session setup, and Lean-based verification gates so the implementation, generated artifacts, and formal model stay aligned.
 
-SMIP-MWP is a high-performance sovereign transport and routing stack focused on:
-- Hybrid PQC session security
-- AF_XDP-oriented fast-path forwarding
-- Predictive routing controls
-- Observable, benchmarked delivery toward production targets
+## What this repository is
 
-**Documentation status:** Older design and phase documents have been archived to the `docs/archive/` folder; operational usage and performance summaries are in `docs/USAGE.md` and `docs/PERFORMANCE.md`.
+- A protocol and forwarding stack with a verified core and a production-oriented fast path
+- An AF_XDP dataplane for low-copy packet I/O on Linux hosts with the `withafxdp` build tag
+- A benchmarked crypto and routing surface with artifacts checked into `benchmarks/`
+- A repo that treats generated code, verification artifacts, and implementation changes as one delivery surface
 
-## Highlights
+## Architecture at a glance
 
-- Deterministic hybrid session crypto with in-place AEAD support
-- Zero-copy-friendly packet loop scaffolding and batched AF_XDP path
-- Prometheus counters and per-worker latency metrics
-- Benchmark harness and CI pipeline with artifact retention
+1. Control plane and protocol orchestration live in `cmd/mohawk-node`.
+2. AF_XDP datapath components live under `internal/datapath/afxdp` and are exercised through `withafxdp`.
+3. Hybrid session crypto and hardening live under `internal/crypto`.
+4. Routing, transport, metrics, and runner helpers are organized under `internal/` and `scripts/`.
+5. Formal verification workflows are gated by Lean and GitHub Actions so generated artifacts stay in sync with source.
 
-## Performance (summary)
+For the operational docs first, start with [docs/QUICK_START.md](docs/QUICK_START.md), [docs/USAGE.md](docs/USAGE.md), and [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
-This repository includes a profile-driven optimization workflow. Full artifacts and pprof captures live under [benchmarks/](benchmarks/). Below are measured results from the most recent development runs (local bench harness, 60s runs):
+## Setup Walkthrough
 
-- AF_XDP datapath (crypto path, 60s): **2014 ns/op**, 560 B/op, 9 allocs/op (`benchmarks/afxdp-bench-single-60s.txt`).
-- AF_XDP datapath (4 workers, crypto path, 60s): **2376 ns/op**, 632 B/op, 11 allocs/op (`benchmarks/afxdp-bench-multi-60s.txt`).
+### 1. Install prerequisites
 
-Crypto microbench highlights (60s runs):
-- `BenchmarkNewHybridSession_Cached`: **545.0 ns/op**, 1392 B/op, 4 allocs/op
-- `BenchmarkNewHybridSession_Uncached`: **610.4 ns/op**, 1392 B/op, 4 allocs/op
-- `BenchmarkEncryptInPlace`: **833.1 ns/op**, 1552 B/op, 2 allocs/op
-- `BenchmarkDecryptInPlace`: terminated mid-run (recommend re-run with pprof)
+- Go 1.25 or the version declared in [go_version.txt](go_version.txt)
+- `clang`, `llvm`, `libbpf-dev`, and `libelf-dev` for AF_XDP builds
+- Linux kernel 5.10+ for AF_XDP work, with 6.x preferred
 
-These numbers reflect development harness runs — bare-metal validation with MoonGen/TRex is required for final line-rate claims. See `benchmarks/` for raw outputs and `benchmarks/pprof/run_pprof_bench.sh` to capture pprof CPU/memory profiles.
+### 2. Clone and build
 
-Recommended canonical configuration for hardware validation:
+```bash
+go build ./...
+```
 
-- `CRYPTO_WORKERS=1`
-- `CRYPTO_BATCH_SIZE=4`
-- Pin receiver process to IRQ/core range using `--auto-pin` helper in `./scripts/max_throughput_run.sh`
+To build the AF_XDP-enabled binary, include the build tag:
 
-See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for interpretation, pprof usage, and the recommended hardware test process (MoonGen/TRex + Ansible orchestration).
+```bash
+go build -tags=withafxdp ./cmd/mohawk-node
+```
 
-## Usage
-
-Quick start, runtime flags, and host prerequisites are consolidated in [docs/USAGE.md](docs/USAGE.md). Key quick commands:
-
-For a minimal quick-start for new contributors, see [docs/QUICK_START.md](docs/QUICK_START.md).
-
-Run tests and vet:
+### 3. Run the basic checks
 
 ```bash
 go test ./... -v
 go vet ./...
 ```
 
-Run local benchmarks:
+For an AF_XDP host preflight and compile-only validation, use:
+
+```bash
+./scripts/test_xdp.sh --run-go-test
+```
+
+### 4. Use the quick start
+
+The quickest path through the repo is documented in [docs/QUICK_START.md](docs/QUICK_START.md). It covers stub mode, AF_XDP mode, and the minimum smoke checks for each.
+
+## Testing and Benchmarking
+
+Use the standard benchmark runner for repeatable local measurements and artifact capture:
 
 ```bash
 ./scripts/bench.sh
 ```
 
-Run AF_XDP-enabled tests (requires host support and build tag):
+Add profiling when you want CPU and memory data:
 
 ```bash
-go test ./... -v -tags=withafxdp
+./scripts/bench.sh --pprof
 ```
 
-Host prep and high-throughput helper
-
-We provide an automated host-run helper to apply common tuning, pin IRQs,
-run the repo microbench, and print traffic-generator commands for line-rate
-tests. This is intended for bare-metal test hosts only (not in containers):
+For a tighter AF_XDP-oriented host validation flow, use the tuning helper:
 
 ```bash
 ./scripts/max_throughput_run.sh --iface eth0 --role receiver --generator moongen \
-	--queues 16 --hugepages 4096 --auto-pin --cpu-start 2 --duration 120 --benchtime 30
+  --queues 16 --hugepages 4096 --auto-pin --cpu-start 2 --duration 120 --benchtime 30
 ```
 
-The script writes profiling artifacts to `benchmarks/` and prints recommended
-`taskset` usage to pin the `mohawk-node` worker process to the IRQ/core range.
+That script prepares the host, runs preflight checks, applies conservative tuning, captures benchmark artifacts, and prints the traffic-generator commands needed for sender-side testing.
 
-## CI and Benchmark Automation
+### Performance snapshot
 
-- Main CI: tests and vet on push/PR via `.github/workflows/ci.yml`
-- Benchmark CI: scheduled + manual dispatch via `.github/workflows/benchmarks.yml` with artifacts uploaded to runs
+The current measured baseline is documented in [docs/PERFORMANCE.md](docs/PERFORMANCE.md). In short:
 
-## AF_XDP Notes
+- Canonical synthetic benchmark: about **1611 ns/op** in the latest documented run
+- Best tuned development sweep: about **1487 ns/op** with `CRYPTO_WORKERS=1` and `CRYPTO_BATCH_SIZE=4`
+- AF_XDP loop benchmark in this environment: about **1.9 µs/op** for the crypto-free loop path
 
-Recommended host baseline:
-- Linux kernel 5.10+ (6.x preferred)
-- `libbpf-dev`, `clang`, `llvm`, `libelf-dev`
-- XDP-capable NIC/driver and appropriate privileges
+These are development numbers, not line-rate claims. For hardware validation, use dedicated hosts and a generator such as MoonGen or TRex, then compare the resulting profiles and throughput with the artifacts in [benchmarks/](benchmarks/).
 
-Detailed prerequisites and runbooks are referenced from [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+## Documentation Map
 
-## Roadmap and Tracking
+- [docs/USAGE.md](docs/USAGE.md) for runtime flags, prerequisites, and canonical commands
+- [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmark interpretation and hardware validation guidance
+- [benchmarks/README.md](benchmarks/README.md) for artifact policy and benchmark hygiene
+- [docs/runner/README.md](docs/runner/README.md) for self-hosted XDP runner setup
+- [docs/archive/ARCHIVED_DOCS.md](docs/archive/ARCHIVED_DOCS.md) for legacy planning material
 
-- [ROADMAP_EXECUTIVE_SUMMARY.md](ROADMAP_EXECUTIVE_SUMMARY.md)
-- [TIMELINE_AND_TRACKER.md](TIMELINE_AND_TRACKER.md)
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
-- [benchmarks/README.md](benchmarks/README.md)
+## Contributing
+
+Contributions are welcome, but this repository expects changes to be treated with the same rigor as the protocol itself. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for branch, PR, and review expectations.
+
+## Sponsorship
+
+Use the Sponsor button above or the GitHub Sponsors link for the repo owner. Sponsorship helps support the work needed to keep the protocol, benchmarks, and formalization aligned.
 
 ## License
 
-This project is licensed. See [LICENSE](LICENSE).
-
----
-
-## 10Gbps Performance Upgrade Status
-
-**Goal:** Achieve ≥10 Gbps throughput with full security hardening and formal verification.
-
-### Current State
-- AF_XDP latency: **2014 ns/op** (single-worker baseline)
-- Sharded session map: ✅ Implemented (reduces mutex contention 16x)
-- Frame pooling: ✅ Implemented (zero-allocation hot path)
-- Multi-queue forwarding: ✅ Implemented (linear scaling architecture)
-- Security hardening: ✅ Implemented (replay protection, DoS mitigation)
-
-### Completed Optimizations
-1. **Frame Pooling** (`internal/datapath/afxdp/pool.go`) - Eliminates per-packet allocations
-2. **Security Hardening** (`internal/crypto/security_hardening.go`) - Replay attack, overflow checks, DoS protection  
-3. **Routing Enhancements** (`internal/routing/router_enhanced.go`) - LPM support with priority ranking
-4. **Multi-Queue Forwarder** (`internal/datapath/afxdp/multi_queue.go`) - Linear scaling architecture
-5. **UDP Transport Layer** (`internal/transport/udp.go`) - Validates handshake and routing logic
-
-### Path to 10Gbps
-See [FINAL_EXECUTION_SUMMARY_10GBPS.md](FINAL_EXECUTION_SUMMARY_10GBPS.md) for complete execution plan and implementation guide.
-
-**Expected Performance After Optimization:**
-- Throughput: ≥10 Gbps on appropriate hardware
-- Latency Overhead: <1ms (p99)
-- GC Pause: <100μs with frame pooling
-- Allocation Rate: <0.1% of throughput
+This project is licensed under AGPL-3.0. See [LICENSE](LICENSE).
