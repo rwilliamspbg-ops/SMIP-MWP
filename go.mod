@@ -1,6 +1,6 @@
 module smip-mwp
 
-go 1.25.0
+go 1.25
 
 require (
 	github.com/asavie/xdp v0.3.3
