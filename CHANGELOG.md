@@ -21,4 +21,9 @@ All notable changes to this project are documented in this file.
   - Generator (`tools/leanvecgen`) updated to derive HKDF vectors from the production Go implementation to ensure generated tests match runtime behavior.
   - Lean sources: small fixes to `CryptoHandshakeSpec` and `GenerateHKDFVectors` so the Lean generator builds under Lake.
 
+- Performance and Rust scaffold (merged from `perf/afxdp-bench-allocs2`):
+  - Added extensive AF_XDP benchmarking artifacts and PProf outputs under `benchmarks/`.
+  - Introduced a `rust_rewrite/` scaffold with AF_XDP, crypto, routing and wire Rust crates and initial benchmark and integration test harnesses.
+  - Added formalization checklist and additional Lean specification modules under `formal/lean4`.
+
 
