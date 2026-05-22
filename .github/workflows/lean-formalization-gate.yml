@@ -30,7 +30,8 @@ jobs:
         run: |
           curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y
           echo "$HOME/.elan/bin" >> $GITHUB_PATH
-          elan default leanprover/lean4:stable
+          # Use explicit elan path to avoid PATH races
+          $HOME/.elan/bin/elan default leanprover/lean4:stable
 
       - name: Build Lean project
         working-directory: formal/lean4
