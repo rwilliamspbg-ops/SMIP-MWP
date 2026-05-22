@@ -1,56 +1,41 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright 2026 rwilliamspbg-ops
-//
-// This file is part of SMIP-MWP.
-// SMIP-MWP is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
-// See the LICENSE file in the project root for details.
-
 package routing
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"testing"
+    "testing"
 )
 
-func randomID(t *testing.T) [32]byte {
-	var b [32]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		t.Fatalf("rand read: %v", err)
-	}
-	return b
+func makeID(s string) [32]byte {
+    var b [32]byte
+    copy(b[:], []byte(s))
+    return b
 }
 
-func TestUpdateAndLookup(t *testing.T) {
-	tbl := NewTable()
-	dst := randomID(t)
-	nh := randomID(t)
-	tbl.UpdateRoute(RouteEntry{DestID: dst, NextHopID: nh})
+func TestLookupExactAndPredictive(t *testing.T) {
+    tbl := NewTable()
+    idA := makeID("dest-A-000000000000000000000")
+    idB := makeID("dest-B-000000000000000000000")
+    nextA := makeID("nexthop-A-0000000000000000000")
+    nextB := makeID("nexthop-B-0000000000000000000")
 
-	got, ok := tbl.LookupNextHop(dst, 0)
-	if !ok {
-		t.Fatalf("expected route for %s", hex.EncodeToString(dst[:4]))
-	}
-	if got != nh {
-		t.Fatalf("unexpected next hop")
-	}
-}
+    tbl.UpdateRoute(RouteEntry{DestID: idA, NextHopID: nextA})
+    tbl.UpdateRoute(RouteEntry{DestID: idB, NextHopID: nextB})
 
-func TestPredictive(t *testing.T) {
-	tbl := NewTable()
-	// Populate several entries
-	for i := 0; i < 8; i++ {
-		dst := randomID(t)
-		nh := randomID(t)
-		tbl.UpdateRoute(RouteEntry{DestID: dst, NextHopID: nh})
-	}
-	src := randomID(t)
-	dst := randomID(t)
-	nh, ok := tbl.PredictiveNextHop(src, dst, 42)
-	if !ok {
-		t.Fatalf("expected predictive next hop")
-	}
-	_ = nh // just ensure we returned something deterministic
+    if nh, ok := tbl.LookupNextHop(idA, 1); !ok || nh != nextA {
+        t.Fatalf("LookupNextHop exact failed: got=%x ok=%v", nh, ok)
+    }
+
+    // Predictive for an unknown dst should return one of the known next-hops
+    unknown := makeID("dest-UNKNOWN-000000000000000000")
+    if nh, ok := tbl.PredictiveNextHop(makeID("src-1"), unknown, 7); !ok {
+        t.Fatalf("PredictiveNextHop returned not-ok")
+    } else {
+        if nh != nextA && nh != nextB {
+            t.Fatalf("PredictiveNextHop returned unexpected nextHop: %x", nh)
+        }
+    }
+
+    // LookupOrPredict should prefer exact match
+    if nh, ok := tbl.LookupOrPredict(makeID("src-1"), idB, 9); !ok || nh != nextB {
+        t.Fatalf("LookupOrPredict exact failed: got=%x ok=%v", nh, ok)
+    }
 }
