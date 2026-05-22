@@ -37,6 +37,29 @@ def lookupPolicy : PolicyTable → PolicyKey → Option RoutePolicy
 def updatePolicy (policies : PolicyTable) (key : PolicyKey) (policy : RoutePolicy) : PolicyTable :=
   (key, policy) :: policies
 
+/-- Minimal additive routing wrapper model for enhanced routing behavior. -/
+structure LPMEntry where
+  Prefix : ByteSeq
+  PrefixLen : Nat
+  NextHopID : ByteSeq
+  Metric : Nat
+  deriving Repr, DecidableEq
+
+/-- Enhanced routing keeps the base table and adds LPM entries additively. -/
+structure EnhancedRouteTable where
+  base : RouteTable
+  lpmEntries : List LPMEntry
+  deriving Repr, DecidableEq
+
+/-- Add a longest-prefix-match route without mutating the base exact-match table. -/
+def addLPMRoute (table : EnhancedRouteTable) (entry : LPMEntry) : EnhancedRouteTable :=
+  { table with lpmEntries := table.lpmEntries ++ [entry] }
+
+/-- Enhanced routing is additive: the base exact-match table is unchanged. -/
+theorem addLPMRoute_preserves_base (table : EnhancedRouteTable) (entry : LPMEntry) :
+    (addLPMRoute table entry).base = table.base := by
+  rfl
+
 /-- Lookup with the seeded default policy as a fallback. -/
 def lookupPolicyOrDefault (policies : PolicyTable) (key : PolicyKey) : RoutePolicy :=
   match lookupPolicy policies key with
@@ -68,6 +91,25 @@ theorem lookupPolicyOrDefault_none (policies : PolicyTable) (key : PolicyKey)
     (h : lookupPolicy policies key = none) :
     lookupPolicyOrDefault policies key = defaultPolicy := by
   simp [lookupPolicyOrDefault, h, defaultPolicy]
+
+/-- When exact lookup succeeds, the default wrapper returns that policy unchanged. -/
+theorem lookupPolicyOrDefault_hit (policies : PolicyTable) (key : PolicyKey)
+    (policy : RoutePolicy) (h : lookupPolicy policies key = some policy) :
+    lookupPolicyOrDefault policies key = policy := by
+  simp [lookupPolicyOrDefault, h]
+
+/-- A compact correctness statement for default-or-exact policy lookup. -/
+theorem lookupOrPredict_policy_correct (policies : PolicyTable) (key : PolicyKey) :
+    match lookupPolicy policies key with
+    | some policy => lookupPolicyOrDefault policies key = policy
+    | none => lookupPolicyOrDefault policies key = defaultPolicy := by
+  cases h : lookupPolicy policies key <;> simp [lookupPolicyOrDefault, h, defaultPolicy]
+
+/-- The enhanced routing wrapper leaves the base exact lookup behavior unchanged. -/
+theorem enhanced_additive_wrapper_preserves_lookup (table : EnhancedRouteTable) (entry : LPMEntry)
+    (dst : ByteSeq) :
+    lookupNextHop (addLPMRoute table entry).base dst = lookupNextHop table.base dst := by
+  simp [addLPMRoute]
 
 /-- Updating a policy keeps the new priority visible to lookup. -/
 theorem updatePolicy_priority_one (policies : PolicyTable) (key : PolicyKey)

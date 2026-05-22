@@ -1,0 +1,57 @@
+name: Lean Formalization Gate
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'formal/lean4/**'
+      - 'internal/**'
+      - '.github/workflows/lean-formalization-gate.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'formal/lean4/**'
+      - 'internal/**'
+      - '.github/workflows/lean-formalization-gate.yml'
+
+jobs:
+  lean-formalization-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25'
+
+      - name: Set up Lean
+        run: |
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+          # Use explicit elan path to avoid PATH races
+          $HOME/.elan/bin/elan default leanprover/lean4:stable
+
+      - name: Build Lean project
+        working-directory: formal/lean4
+        run: |
+          "$HOME/.elan/bin/lake" build
+
+      - name: Run conformance tests
+        run: |
+          go test ./internal/routing ./internal/wire ./internal/crypto ./internal/datapath/afxdp -count=1
+
+      - name: Require fully checked Lean checklist
+        run: |
+          if grep -nE '^\s*- \[ \]' formal/lean4/LEAN_FORMALIZATION_CHECKLIST.md; then
+            echo "Lean formalization checklist still has open items"
+            exit 1
+          fi
+
+      - name: Reject proof placeholders
+        run: |
+          if grep -Rnw --include='*.lean' -E '\b(sorry|admit|axiom)\b' formal/lean4/Lean; then
+            echo "Lean proof placeholders are not allowed"
+            exit 1
+          fi

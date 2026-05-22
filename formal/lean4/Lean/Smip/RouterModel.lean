@@ -49,6 +49,12 @@ theorem lookup_updateRoute_other (table : RouteTable) (entry : RouteEntry) (dst 
     lookupNextHop (updateRoute table entry) dst = lookupNextHop table dst := by
   simp [updateRoute, lookupNextHop, hne]
 
+/-- Route-table updates preserve exact lookup for unrelated destinations. -/
+theorem routeTable_update_preserves_lookup (table : RouteTable) (entry : RouteEntry)
+    (dst : ByteSeq) (hne : dst ≠ entry.DestID) :
+    lookupNextHop (updateRoute table entry) dst = lookupNextHop table dst := by
+  simpa [updateRoute] using lookup_updateRoute_other table entry dst hne
+
 /-- A nonempty table always has some next hop available for predictive fallback. -/
 theorem predictive_fallback_exists (table : RouteTable) (h : table ≠ []) :
     ∃ nextHop : ByteSeq, True := by

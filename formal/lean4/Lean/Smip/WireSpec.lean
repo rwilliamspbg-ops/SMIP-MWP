@@ -36,6 +36,38 @@ structure WireHeader where
 abbrev PackedHeader := WireHeader
 /- Concrete byte-level packing for the header. -/
 
+/-- A zero-copy header view over a mutable byte buffer. -/
+structure HeaderView where
+  buf : List Byte
+
+/-- Zero-copy source-ID setter, modeled as slice replacement in the backing buffer. -/
+def setSrcID (v : HeaderView) (id : Vector Byte 32) : HeaderView :=
+  { buf := id.toList ++ v.buf.drop 32 }
+
+/-- Zero-copy destination-ID setter, modeled as slice replacement in the backing buffer. -/
+def setDstID (v : HeaderView) (id : Vector Byte 32) : HeaderView :=
+  { buf := v.buf.take 32 ++ id.toList ++ v.buf.drop 64 }
+
+/-- Zero-copy setters preserve the overall buffer length in the abstract model. -/
+theorem setSrcID_preserves_length (v : HeaderView) (id : Vector Byte 32) :
+    (setSrcID v id).buf.length = v.buf.length := by
+  simp [setSrcID, HeaderView]
+
+/-- Zero-copy setters preserve the overall buffer length in the abstract model. -/
+theorem setDstID_preserves_length (v : HeaderView) (id : Vector Byte 32) :
+    (setDstID v id).buf.length = v.buf.length := by
+  simp [setDstID, HeaderView, List.length_append]
+
+/-- Setting the source ID updates the modeled source slice. -/
+theorem setSrcID_readback (v : HeaderView) (id : Vector Byte 32) :
+    (setSrcID v id).buf.take 32 = id.toList := by
+  simp [setSrcID, HeaderView]
+
+/-- Setting the destination ID updates the modeled destination slice. -/
+theorem setDstID_readback (v : HeaderView) (id : Vector Byte 32) :
+    ((setDstID v id).buf.drop 32).take 32 = id.toList := by
+  simp [setDstID, HeaderView]
+
 /- Helper: represent natural numbers as big-endian bytes (most-significant first).
 def natToBytes : Nat → Nat → List Byte
   | 0, _ => []
@@ -82,6 +114,11 @@ theorem header_layout :
     lenOffset = 94 ∧
     headerSize = 96 := by
   simp [srcOffset, dstOffset, flowOffset, seqOffset, sessionOffset, flagsOffset, lenOffset, headerSize]
+
+/-- Marshalling a header always produces the fixed-size wire representation. -/
+theorem marshal_length (h : WireHeader) : (marshal h).length = headerSize := by
+  dsimp [marshal, headerSize]
+  simp [List.length_append, Vector.length_toList]
 
 /-/-- Helper: bytesToNat . natToBytes inverse for fixed-length big-endian representations. -/
 theorem bytesToNat_natToBytes_inverse :

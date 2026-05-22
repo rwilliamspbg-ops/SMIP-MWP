@@ -28,9 +28,10 @@ Project layout
 - `Lean/Smip/RoutingSpec.lean` — Lean spec for the router policy table and exact-match lookup behavior
 - `Lean/Smip/RouterModel.lean` — Lean spec for routing entries, exact lookup, update, and fallback existence
 - `Lean/Smip/CryptoSpec.lean` — Lean spec for HKDF cache bounds and hybrid handshake length constants
+- `Lean/Smip/CryptoHandshakeSpec.lean` — Lean spec for derived session material shape and deterministic handshake slicing
 - `Lean/Smip/AFXDPSpec.lean` — Lean spec for session sharding and forwarder start/stop behavior
 - `Lean/Smip/WireSpec.lean` — Lean spec for wire header layout and round-trip invariants
-- `LEAN_FORMALIZATION_CHECKLIST.md` — tracked checklist for routing, crypto, wire, and AF_XDP formalization work
+- `LEAN_FORMALIZATION_CHECKLIST.md` — tracked checklist and Phase 3 finish plan for routing, crypto, wire, and AF_XDP formalization work
 
 How to contribute proofs
 
