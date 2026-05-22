@@ -5,7 +5,6 @@
 [![Rust CI](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/ci-rust.yml/badge.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/ci-rust.yml)
 [![Lean Build](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/lean4.yml/badge.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/lean4.yml)
 [![Formal Verification](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/lean-formalization-gate.yml/badge.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/lean-formalization-gate.yml)
-[![Generated Up-to-date Check](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/check-generated-up-to-date.yml/badge.svg)](https://github.com/rwilliamspbg-ops/SMIP-MWP/actions/workflows/check-generated-up-to-date.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/rwilliamspbg-ops/SMIP-MWP)](https://goreportcard.com/report/github.com/rwilliamspbg-ops/SMIP-MWP)
 [![Go Version](https://img.shields.io/badge/go-1.25-blue.svg)](https://golang.org)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
