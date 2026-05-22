@@ -1,4 +1,4 @@
-name: Check Generated Files Up-to-date
+go throughname: Check Generated Files Up-to-date
 
 on:
   pull_request:
