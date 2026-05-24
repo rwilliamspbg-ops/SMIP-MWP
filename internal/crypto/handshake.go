@@ -6,14 +6,16 @@
 package crypto
 
 import (
+	"crypto/ecdh"
+	"crypto/hmac"
+	"crypto/mlkem"
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
-	"io"
 	"time"
 )
 
-// SessionState defines the valid states in the handshake lifecycle
+// SessionState defines the valid states in the handshake lifecycle.
 type SessionState string
 
 const (
@@ -24,93 +26,193 @@ const (
 	StateTimedOut           SessionState = "TIMED_OUT"
 )
 
-// HandshakeTimeout is the maximum time allowed for completing a handshake
+// HandshakeTimeout is the maximum time allowed for completing a handshake.
 const HandshakeTimeout = 30 * time.Second
 
-// MaxReplayWindow is the number of sequence numbers to track for replay detection
+// MaxReplayWindow is the number of sequence numbers to track for replay detection.
 const MaxReplayWindow = 64
 
-// RetryBackoffMultiplier is used for exponential backoff on handshake failures
+// RetryBackoffMultiplier is used for exponential backoff on handshake failures.
 const RetryBackoffMultiplier = 2.0
+
+// MaxRetries is the maximum number of handshake retries before aborting.
 const MaxRetries = 3
 
-// HybridKEX represents a hybrid key exchange (x25519 + ML-KEM-768)
+// x25519PubSize and mlkemPubSize are the wire sizes for the combined public key.
+const (
+	x25519PubSize = 32
+	mlkemPubSize  = mlkem.EncapsulationKeySize768 // 1184 bytes
+	mlkemCtSize   = mlkem.CiphertextSize768        // 1088 bytes
+)
+
+// HybridKEX holds ephemeral x25519 + ML-KEM-768 key material for one handshake.
+// X25519 scalar multiplication uses crypto/ecdh (stdlib, Go 1.20+).
+// ML-KEM-768 is provided by crypto/mlkem (stdlib, Go 1.24+).
 type HybridKEX struct {
-	x25519Pub  []byte
-	x25519Priv []byte
-	mlkemPub   [1184]byte
-	mlkemPriv  [2400]byte
+	x25519Priv *ecdh.PrivateKey
+	x25519Pub  *ecdh.PublicKey
+
+	mlkemKey *mlkem.DecapsulationKey768 // private — used by initiator to decapsulate
+	mlkemPub *mlkem.EncapsulationKey768 // public — shared in PublicKey()
 }
 
-// NewHybridKEX initializes a hybrid key exchange instance
+// NewHybridKEX initializes a hybrid key exchange instance with real cryptographic keys.
 func NewHybridKEX() (*HybridKEX, error) {
 	h := &HybridKEX{}
-	h.x25519Pub = make([]byte, 32)
-	h.x25519Priv = make([]byte, 32)
-	if _, err := io.ReadFull(rand.Reader, h.x25519Pub); err != nil {
-		return nil, fmt.Errorf("kex: x25519 pub gen: %w", err)
-	}
-	if _, err := io.ReadFull(rand.Reader, h.x25519Priv); err != nil {
-		return nil, fmt.Errorf("kex: x25519 priv gen: %w", err)
-	}
 
-	// Placeholder material until internal/crypto wiring is migrated to root package kex.
-	for i := range h.mlkemPub[:] {
-		h.mlkemPub[i] = byte(i)
+	// x25519 keypair via crypto/ecdh
+	x25519Priv, err := ecdh.X25519().GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("kex: x25519 key gen: %w", err)
 	}
+	h.x25519Priv = x25519Priv
+	h.x25519Pub  = x25519Priv.PublicKey()
 
-	for i := range h.mlkemPriv[:] {
-		h.mlkemPriv[i] = byte(i + 1)
+	// ML-KEM-768 keypair
+	key, err := mlkem.GenerateKey768()
+	if err != nil {
+		return nil, fmt.Errorf("kex: mlkem key gen: %w", err)
 	}
+	h.mlkemKey = key
+	h.mlkemPub = key.EncapsulationKey()
 
 	return h, nil
 }
 
-// PublicKey returns the hybrid public key (x25519 || ML-KEM pub)
+// PublicKey returns the combined initiator public key: x25519_pub (32) || mlkem_pub (1184).
 func (h *HybridKEX) PublicKey() ([]byte, error) {
-	if len(h.x25519Pub) == 0 {
-		return nil, fmt.Errorf("HybridKEX: x25519 key not initialized")
+	if h.mlkemPub == nil {
+		return nil, fmt.Errorf("HybridKEX: mlkem key not initialised")
 	}
-	// Concatenate x25519 + ML-KEM public keys
-	pub := make([]byte, len(h.x25519Pub)+len(h.mlkemPub[:]))
-	copy(pub[:], h.x25519Pub)
-	copy(pub[len(h.x25519Pub):], h.mlkemPub[:])
+	pub := make([]byte, x25519PubSize+mlkemPubSize)
+	copy(pub[:x25519PubSize], h.x25519Pub.Bytes())
+	copy(pub[x25519PubSize:], h.mlkemPub.Bytes())
 	return pub, nil
 }
 
-// Handshake performs the hybrid KEX with a peer's public key, deriving shared secret
-func (h *HybridKEX) Handshake(peerPubKey []byte) ([]byte, error) {
-	if len(peerPubKey) == 0 {
-		return nil, fmt.Errorf("kex: peer public key empty")
+// Respond is called by the responder with the initiator's combined public key.
+// It returns (responderMsg, sharedSecret, error).
+//
+// responderMsg wire format: x25519_resp_pub (32) || mlkem_ciphertext (1088)
+func (h *HybridKEX) Respond(initiatorPub []byte) ([]byte, []byte, error) {
+	if len(initiatorPub) < x25519PubSize+mlkemPubSize {
+		return nil, nil, fmt.Errorf("kex: initiator pub too short: got %d, want %d",
+			len(initiatorPub), x25519PubSize+mlkemPubSize)
 	}
-	x25519SharedSecret := computeX25519SharedSecret(h.x25519Priv, peerPubKey)
 
-	mlkemShared := make([]byte, 32)
-	copy(mlkemShared, x25519SharedSecret[:16])
+	// X25519 DH via crypto/ecdh
+	peerX25519Pub, err := ecdh.X25519().NewPublicKey(initiatorPub[:x25519PubSize])
+	if err != nil {
+		return nil, nil, fmt.Errorf("kex: parse initiator x25519 pub: %w", err)
+	}
+	x25519SS, err := h.x25519Priv.ECDH(peerX25519Pub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("kex: x25519 DH: %w", err)
+	}
 
-	combinedSecret := deriveCombinedSecret(x25519SharedSecret, mlkemShared)
+	// ML-KEM-768 encapsulation
+	initiatorMLKEMPubBytes := initiatorPub[x25519PubSize : x25519PubSize+mlkemPubSize]
+	initiatorMLKEMPub, err := mlkem.NewEncapsulationKey768(initiatorMLKEMPubBytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("kex: parse initiator mlkem pub: %w", err)
+	}
+	mlkemCiphertext, mlkemSS := initiatorMLKEMPub.Encapsulate()
 
-	return combinedSecret, nil
+	// Wire message: responder x25519 pub || mlkem ciphertext
+	msg := make([]byte, x25519PubSize+mlkemCtSize)
+	copy(msg[:x25519PubSize], h.x25519Pub.Bytes())
+	copy(msg[x25519PubSize:], mlkemCiphertext)
+
+	transcript := handshakeTranscript(initiatorPub[:x25519PubSize], h.x25519Pub.Bytes(), initiatorMLKEMPubBytes, mlkemCiphertext)
+	ss, err := handshakeDeriveSecret(x25519SS, mlkemSS, transcript)
+	if err != nil {
+		return nil, nil, err
+	}
+	return msg, ss, nil
 }
 
-// deriveCombinedSecret combines x25519 and ML-KEM shared secrets using HKDF
-func deriveCombinedSecret(x25519, mlkem []byte) []byte {
+// Finish is called by the initiator upon receiving the responder's wire message.
+// It decapsulates the ML-KEM ciphertext, performs X25519 DH, and returns the
+// same 64-byte session secret produced by Respond.
+func (h *HybridKEX) Finish(responderMsg []byte) ([]byte, error) {
+	if len(responderMsg) < x25519PubSize+mlkemCtSize {
+		return nil, fmt.Errorf("kex: responder msg too short: got %d, want %d",
+			len(responderMsg), x25519PubSize+mlkemCtSize)
+	}
+
+	respX25519Pub, err := ecdh.X25519().NewPublicKey(responderMsg[:x25519PubSize])
+	if err != nil {
+		return nil, fmt.Errorf("kex: parse responder x25519 pub: %w", err)
+	}
+	x25519SS, err := h.x25519Priv.ECDH(respX25519Pub)
+	if err != nil {
+		return nil, fmt.Errorf("kex: x25519 DH: %w", err)
+	}
+
+	ct := responderMsg[x25519PubSize : x25519PubSize+mlkemCtSize]
+	mlkemSS := h.mlkemKey.Decapsulate(ct)
+
+	initiatorMLKEMPubBytes := h.mlkemPub.Bytes()
+	transcript := handshakeTranscript(h.x25519Pub.Bytes(), respX25519Pub.Bytes(), initiatorMLKEMPubBytes, ct)
+	return handshakeDeriveSecret(x25519SS, mlkemSS, transcript)
+}
+
+// handshakeTranscript builds a deterministic salt from the handshake transcript so
+// both peers derive the same HKDF salt without any extra round-trip.
+func handshakeTranscript(x25519InitPub, x25519RespPub, mlkemInitPub, mlkemCiphertext []byte) []byte {
 	h := sha256.New()
-	_, _ = h.Write(x25519)
-	_, _ = h.Write(mlkem)
+	h.Write(x25519InitPub)
+	h.Write(x25519RespPub)
+	h.Write(mlkemInitPub)
+	h.Write(mlkemCiphertext)
 	return h.Sum(nil)
 }
 
-// computeX25519SharedSecret computes the x25519 shared secret (simplified)
-func computeX25519SharedSecret(privKey []byte, pubKey []byte) []byte {
-	h := sha256.New()
-	_, _ = h.Write(privKey)
-	_, _ = h.Write(pubKey)
-	sum := h.Sum(nil)
-	return sum
+// handshakeDeriveSecret combines X25519 and ML-KEM shared secrets via two-stage HKDF.
+func handshakeDeriveSecret(x25519SS, mlkemSS, transcript []byte) ([]byte, error) {
+	prkClassical := handshakeHKDFExtract(transcript, x25519SS)
+	prkPQC := handshakeHKDFExtract(transcript, mlkemSS)
+	combined := append(prkClassical, prkPQC...)
+	prkCombined := handshakeHKDFExtract(transcript, combined)
+
+	// HKDF-Expand(prkCombined, info="smip-mwp-kex-v1", 64) — RFC 5869 §2.3
+	info := []byte("smip-mwp-kex-v1")
+	out := hkdfExpand(prkCombined, info, 64)
+	return out, nil
 }
 
-// HybridKEXState represents the state for a hybrid KEX handshake session
+
+// hkdfExpand computes HKDF-Expand(prk, info, length) via HMAC-SHA256 (RFC 5869 §2.3).
+func hkdfExpand(prk, info []byte, length int) []byte {
+	var out []byte
+	var T []byte
+	for i := 1; len(out) < length; i++ {
+		mac := hmac.New(sha256.New, prk)
+		mac.Write(T)
+		mac.Write(info)
+		mac.Write([]byte{byte(i)})
+		T = mac.Sum(nil)
+		out = append(out, T...)
+	}
+	return out[:length]
+}
+
+// handshakeHKDFExtract computes HKDF-Extract(salt, ikm) using stdlib HMAC-SHA256.
+// This avoids the golang.org/x/crypto/hkdf dependency (RFC 5869 §2.2).
+func handshakeHKDFExtract(salt, ikm []byte) []byte {
+	if len(salt) == 0 {
+		salt = make([]byte, sha256.Size)
+	}
+	mac := hmac.New(sha256.New, salt)
+	mac.Write(ikm)
+	return mac.Sum(nil)
+}
+
+// ---------------------------------------------------------------------------
+// HybridKEXState — per-session handshake state machine
+// ---------------------------------------------------------------------------
+
+// HybridKEXState represents the state for a hybrid KEX handshake session.
 type HybridKEXState struct {
 	sessionID     [16]byte
 	kexStarted    time.Time
@@ -118,24 +220,21 @@ type HybridKEXState struct {
 	retryCount    int
 	handshakeDone bool
 
-	// Sequence tracking for replay protection
 	seqCounter uint64
 	seqWindow  map[uint64]struct{}
 }
 
-// NewHybridKEXState creates a new handshake state
+// NewHybridKEXState creates a new handshake state.
 func NewHybridKEXState(sessionID [16]byte) *HybridKEXState {
-	state := &HybridKEXState{
+	return &HybridKEXState{
 		sessionID:  sessionID,
 		seqWindow:  make(map[uint64]struct{}),
 		kexStarted: time.Now(),
 		timeout:    time.Now().Add(HandshakeTimeout),
 	}
-
-	return state
 }
 
-// CheckTimeout checks if handshake has timed out and returns error if so
+// CheckTimeout checks if handshake has timed out.
 func (s *HybridKEXState) CheckTimeout() error {
 	if !s.handshakeDone {
 		if time.Now().After(s.timeout) {
@@ -146,17 +245,16 @@ func (s *HybridKEXState) CheckTimeout() error {
 	return nil
 }
 
-// IncrementSeqCounter increments the sequence counter and checks replay window
+// IncrementSeqCounter increments the sequence counter and checks the replay window.
 func (s *HybridKEXState) IncrementSeqCounter() (uint64, error) {
 	s.seqCounter++
 	seq := s.seqCounter
 
-	// Check if this seq number has been seen before in the window
 	if _, exists := s.seqWindow[seq]; exists {
 		return seq, fmt.Errorf("crypto: replay attack detected for session %x", s.sessionID[:])
 	}
 
-	// Remove oldest from window and add new
+	// Evict oldest entry when window is full (O(n) scan is fine at MaxReplayWindow=64).
 	if len(s.seqWindow) >= MaxReplayWindow {
 		oldest := seq
 		for seen := range s.seqWindow {
@@ -171,7 +269,7 @@ func (s *HybridKEXState) IncrementSeqCounter() (uint64, error) {
 	return seq, nil
 }
 
-// CheckRetries checks if max retries exceeded and returns error if so
+// CheckRetries returns an error if the max retry limit has been exceeded.
 func (s *HybridKEXState) CheckRetries() error {
 	if s.retryCount >= MaxRetries {
 		return fmt.Errorf("crypto: handshake retry limit (%d) exceeded for session %x", MaxRetries, s.sessionID[:])
@@ -180,13 +278,14 @@ func (s *HybridKEXState) CheckRetries() error {
 	return nil
 }
 
-// ResetRetry resets the retry counter on success
+// ResetRetry resets the retry counter on success.
 func (s *HybridKEXState) ResetRetry() {
 	s.retryCount = 0
 }
 
-// Cleanup cancels timeout and cleans up state
+// Cleanup zeros time fields and discards replay window state.
 func (s *HybridKEXState) Cleanup() {
 	s.kexStarted = time.Time{}
 	s.timeout = time.Time{}
+	s.seqWindow = make(map[uint64]struct{})
 }
