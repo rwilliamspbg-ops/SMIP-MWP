@@ -71,12 +71,12 @@ cd /app > /dev/null
 if [ -f "/app/crypto-stress.test" ]; then
     echo "=== Running Crypto Stress Tests (${NUM_RUNS} iterations) ===" >> "${OUT_FILE}"
     /app/crypto-stress.test \
-        -bench=. \
-        -benchmem \
-        -run=^$ \
-        -count=${NUM_RUNS} \
-        -cpuprofile="${OUTPUT_DIR}/stress-${TS}-cpu.prof" \
-        -memprofile="${OUTPUT_DIR}/stress-${TS}-mem.prof" \
+        -test.bench=. \
+        -test.benchmem \
+        -test.run=^$ \
+        -test.count=${NUM_RUNS} \
+        -test.cpuprofile="${OUTPUT_DIR}/stress-${TS}-cpu.prof" \
+        -test.memprofile="${OUTPUT_DIR}/stress-${TS}-mem.prof" \
     2>&1 | tee -a "${OUT_FILE}" || true
     echo "" >> "${OUT_FILE}"
 fi
