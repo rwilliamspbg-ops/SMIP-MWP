@@ -21,22 +21,37 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
-// HybridKeyExchange performs x25519 + ML-KEM-768 key exchange.
+// HybridKeyExchange performs x25519 + ML-KEM-768 hybrid key exchange.
 //
-// The combined shared secret is derived with a two-stage HKDF combiner:
+// Protocol (two-phase, asymmetric):
 //
-//	prk_classical  = HKDF-Extract(salt, x25519_ss)
-//	prk_pqc        = HKDF-Extract(salt, mlkem_ss)
-//	combined_prk   = HKDF-Extract(salt, prk_classical || prk_pqc)
-//	session_secret = HKDF-Expand(combined_prk, info, 64)
+//	Initiator                              Responder
+//	─────────────────────────────────────────────────
+//	NewHybridKEX() → kex
+//	kex.PublicKey() ──────────────────────▶ initiatorPub
+//	                                        NewHybridKEX() → kex
+//	                                        kex.Respond(initiatorPub)
+//	                                          → (responderMsg, sharedSecret)
+//	responderMsg   ◀──────────────────────  send responderMsg
+//	kex.Finish(responderMsg)
+//	  → sharedSecret
+//
+// Both sides derive the same 64-byte session secret.
+//
+// Key derivation:
+//
+//	transcript_salt = SHA-256(x25519_init_pub || x25519_resp_pub || mlkem_init_pub || mlkem_ciphertext)
+//	prk_classical   = HKDF-Extract(transcript_salt, x25519_ss)
+//	prk_pqc         = HKDF-Extract(transcript_salt, mlkem_ss)
+//	combined_prk    = HKDF-Extract(transcript_salt, prk_classical || prk_pqc)
+//	session_secret  = HKDF-Expand(combined_prk, "smip-mwp-kex-v1", 64)
 type HybridKeyExchange struct {
 	x25519Priv [32]byte
 	x25519Pub  [32]byte
 
-	// ML-KEM-768 keypair (real cryptographic keys from crypto/mlkem)
-	mlkemKey  *mlkem.DecapsulationKey768
-	mlkemPub  *mlkem.EncapsulationKey768
-	mlkemSeed [64]byte // seed for deterministic key derivation
+	// ML-KEM-768 keypair — used for decapsulation by the initiator.
+	mlkemKey *mlkem.DecapsulationKey768
+	mlkemPub *mlkem.EncapsulationKey768
 }
 
 // NewHybridKEX generates a fresh x25519 + ML-KEM-768 ephemeral keypair.
@@ -46,23 +61,16 @@ func NewHybridKEX(rng io.Reader) (*HybridKeyExchange, error) {
 	}
 	h := &HybridKeyExchange{}
 
-	// x25519 private key
 	if _, err := io.ReadFull(rng, h.x25519Priv[:]); err != nil {
 		return nil, fmt.Errorf("kex: x25519 key gen: %w", err)
 	}
 	pub, err := curve25519.X25519(h.x25519Priv[:], curve25519.Basepoint)
 	if err != nil {
-		return nil, fmt.Errorf("kex: x25519 key gen (X25519): %w", err)
+		return nil, fmt.Errorf("kex: x25519 public key: %w", err)
 	}
 	copy(h.x25519Pub[:], pub)
 
-	// ML-KEM-768: Generate real keypair using crypto/mlkem
-	if _, err := io.ReadFull(rng, h.mlkemSeed[:]); err != nil {
-		return nil, fmt.Errorf("kex: mlkem seed gen: %w", err)
-	}
-	var key *mlkem.DecapsulationKey768
-
-	key, err = mlkem.GenerateKey768()
+	key, err := mlkem.GenerateKey768()
 	if err != nil {
 		return nil, fmt.Errorf("kex: mlkem key gen: %w", err)
 	}
@@ -72,8 +80,8 @@ func NewHybridKEX(rng io.Reader) (*HybridKeyExchange, error) {
 	return h, nil
 }
 
-// PublicKey returns the combined public key bytes: x25519_pub (32) || mlkem_pub (1184).
-// The ML-KEM public key is serialized to its standard byte representation.
+// PublicKey returns the initiator's combined public key: x25519_pub (32) || mlkem_pub (1184).
+// Send this to the responder to begin the handshake.
 func (h *HybridKeyExchange) PublicKey() []byte {
 	mlkemPubBytes := h.mlkemPub.Bytes()
 	out := make([]byte, 32+len(mlkemPubBytes))
@@ -82,54 +90,117 @@ func (h *HybridKeyExchange) PublicKey() []byte {
 	return out
 }
 
-// Handshake derives the combined session secret given the peer's combined public key.
-// Returns 64 bytes of combined key material suitable for passing to NewHybridSession.
-//
-// Note: The current implementation uses deterministic ML-KEM shared secret derivation
-// to maintain the symmetric protocol interface. A future version will use asymmetric
-// encapsulation/decapsulation for full ML-KEM security.
-func (h *HybridKeyExchange) Handshake(peerPub []byte) ([]byte, error) {
-	// ML-KEM public key size is 1184 bytes
-	if len(peerPub) < 32+1184 {
-		return nil, fmt.Errorf("kex: peer public key too short: got %d, want %d", len(peerPub), 32+1184)
+// ResponderMessage is returned by Respond and contains the responder's
+// x25519 public key (32 bytes) plus the ML-KEM-768 ciphertext (1088 bytes).
+// Total wire size: 1120 bytes.
+type ResponderMessage struct {
+	X25519Pub      [32]byte
+	MLKEMCiphertext [mlkem.CiphertextSize768]byte
+}
+
+// Bytes serialises the responder message to wire format: x25519_pub || mlkem_ciphertext.
+func (m *ResponderMessage) Bytes() []byte {
+	out := make([]byte, 32+mlkem.CiphertextSize768)
+	copy(out[:32], m.X25519Pub[:])
+	copy(out[32:], m.MLKEMCiphertext[:])
+	return out
+}
+
+// Respond is called by the responder upon receiving the initiator's public key.
+// It encapsulates against the initiator's ML-KEM public key, performs X25519 DH,
+// and returns the responder's wire message together with the derived 64-byte session secret.
+func (h *HybridKeyExchange) Respond(initiatorPub []byte) (*ResponderMessage, []byte, error) {
+	if len(initiatorPub) < 32+mlkem.EncapsulationKeySize768 {
+		return nil, nil, fmt.Errorf("kex: initiator public key too short: got %d, want %d",
+			len(initiatorPub), 32+mlkem.EncapsulationKeySize768)
 	}
 
-	// --- Classical: x25519 ---
+	// --- Classical: X25519 ---
 	var peerX25519 [32]byte
-	copy(peerX25519[:], peerPub[:32])
-	var x25519SS [32]byte
-	ss, err := curve25519.X25519(h.x25519Priv[:], peerX25519[:])
+	copy(peerX25519[:], initiatorPub[:32])
+	x25519SS, err := curve25519.X25519(h.x25519Priv[:], peerX25519[:])
 	if err != nil {
-		return nil, fmt.Errorf("kex: x25519 scalar mult (X25519): %w", err)
-	}
-	copy(x25519SS[:], ss)
-
-	// --- PQC: ML-KEM-768 deterministic shared secret ---
-	// For now, derive a deterministic shared secret from the hybrid of our seed and peer's public key.
-	// This ensures both sides derive the same value despite ML-KEM's asymmetric API.
-	// Future version: use encapsulation/decapsulation for full post-quantum security.
-	peerMLBytes := peerPub[32 : 32+1184]
-
-	// Hash(our seed || peer's pk) to get a deterministic shared secret
-	h256 := sha256.New()
-	h256.Write(h.mlkemSeed[:])
-	h256.Write(peerMLBytes)
-	mlkemSS := make([]byte, 32)
-	copy(mlkemSS, h256.Sum(nil)[:32])
-
-	// --- Two-stage HKDF combiner ---
-	salt := make([]byte, 32)
-	if _, err := rand.Read(salt); err != nil {
-		return nil, fmt.Errorf("kex: salt gen: %w", err)
+		return nil, nil, fmt.Errorf("kex: x25519 DH: %w", err)
 	}
 
-	prkClassical := hkdfExtract(sha256.New, salt, x25519SS[:])
-	prkPQC := hkdfExtract(sha256.New, salt, mlkemSS)
+	// --- PQC: ML-KEM-768 encapsulation ---
+	initiatorMLKEMPubBytes := initiatorPub[32 : 32+mlkem.EncapsulationKeySize768]
+	initiatorMLKEMPub, err := mlkem.NewEncapsulationKey768(initiatorMLKEMPubBytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("kex: parse initiator mlkem public key: %w", err)
+	}
+	mlkemCiphertext, mlkemSS := initiatorMLKEMPub.Encapsulate()
+
+	msg := &ResponderMessage{}
+	copy(msg.X25519Pub[:], h.x25519Pub[:])
+	copy(msg.MLKEMCiphertext[:], mlkemCiphertext)
+
+	// Derive shared secret
+	transcript := buildTranscript(peerX25519[:], h.x25519Pub[:], initiatorMLKEMPubBytes, mlkemCiphertext)
+	sessionSecret, err := deriveSessionSecret(x25519SS, mlkemSS, transcript)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return msg, sessionSecret, nil
+}
+
+// Finish is called by the initiator upon receiving the responder's message.
+// It decapsulates the ML-KEM ciphertext, performs X25519 DH, and returns
+// the same 64-byte session secret that Respond produced.
+func (h *HybridKeyExchange) Finish(responderMsg []byte) ([]byte, error) {
+	if len(responderMsg) < 32+mlkem.CiphertextSize768 {
+		return nil, fmt.Errorf("kex: responder message too short: got %d, want %d",
+			len(responderMsg), 32+mlkem.CiphertextSize768)
+	}
+
+	// --- Classical: X25519 ---
+	var respX25519Pub [32]byte
+	copy(respX25519Pub[:], responderMsg[:32])
+	x25519SS, err := curve25519.X25519(h.x25519Priv[:], respX25519Pub[:])
+	if err != nil {
+		return nil, fmt.Errorf("kex: x25519 DH: %w", err)
+	}
+
+	// --- PQC: ML-KEM-768 decapsulation ---
+	var ctBytes [mlkem.CiphertextSize768]byte
+	copy(ctBytes[:], responderMsg[32:32+mlkem.CiphertextSize768])
+	mlkemSS := h.mlkemKey.Decapsulate(ctBytes[:])
+
+	// Rebuild transcript using initiator's own mlkem pub + received ciphertext
+	initiatorMLKEMPubBytes := h.mlkemPub.Bytes()
+	transcript := buildTranscript(h.x25519Pub[:], respX25519Pub[:], initiatorMLKEMPubBytes, ctBytes[:])
+
+	return deriveSessionSecret(x25519SS, mlkemSS, transcript)
+}
+
+// buildTranscript constructs the HKDF salt as a hash of the handshake transcript,
+// ensuring both peers use the same salt without any additional round-trip.
+//
+//	transcript = SHA-256(x25519_init_pub || x25519_resp_pub || mlkem_init_pub || mlkem_ciphertext)
+func buildTranscript(x25519InitPub, x25519RespPub, mlkemInitPub, mlkemCiphertext []byte) []byte {
+	h := sha256.New()
+	h.Write(x25519InitPub)
+	h.Write(x25519RespPub)
+	h.Write(mlkemInitPub)
+	h.Write(mlkemCiphertext)
+	return h.Sum(nil)
+}
+
+// deriveSessionSecret combines classical and PQC shared secrets via two-stage HKDF.
+//
+//	prk_classical  = HKDF-Extract(transcript, x25519_ss)
+//	prk_pqc        = HKDF-Extract(transcript, mlkem_ss)
+//	combined_prk   = HKDF-Extract(transcript, prk_classical || prk_pqc)
+//	session_secret = HKDF-Expand(combined_prk, "smip-mwp-kex-v1", 64)
+func deriveSessionSecret(x25519SS, mlkemSS, transcript []byte) ([]byte, error) {
+	prkClassical := hkdfExtract(sha256.New, transcript, x25519SS)
+	prkPQC := hkdfExtract(sha256.New, transcript, mlkemSS)
 
 	combined := append(prkClassical, prkPQC...)
-	prkCombined := hkdfExtract(sha256.New, salt, combined)
+	prkCombined := hkdfExtract(sha256.New, transcript, combined)
 
-	r := hkdf.New(sha256.New, prkCombined, salt, []byte("smip-mwp-kex-v1"))
+	r := hkdf.New(sha256.New, prkCombined, transcript, []byte("smip-mwp-kex-v1"))
 	sessionSecret := make([]byte, 64)
 	if _, err := io.ReadFull(r, sessionSecret); err != nil {
 		return nil, fmt.Errorf("kex: session secret expand: %w", err)
