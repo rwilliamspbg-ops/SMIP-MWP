@@ -54,14 +54,19 @@ func NewDoSThrottle(ratePerSec int) *DoSThrottle {
 	}
 }
 
-// AllowPacket checks if packet processing is allowed under DoS protection
+// AllowPacket checks if packet processing is allowed under DoS protection.
+// Uses a CAS loop to atomically update lastPacketTime, eliminating the
+// TOCTOU race between the Load check and the Store update.
 func (d *DoSThrottle) AllowPacket() bool {
 	now := time.Now().UnixNano()
-	lastSeen := atomic.LoadInt64(&d.lastPacketTime)
-
-	if lastSeen == 0 || now-lastSeen >= d.rateLimitNs {
-		atomic.StoreInt64(&d.lastPacketTime, now)
-		return true
+	for {
+		lastSeen := atomic.LoadInt64(&d.lastPacketTime)
+		if lastSeen != 0 && now-lastSeen < d.rateLimitNs {
+			return false
+		}
+		// CAS: only one goroutine wins; others retry and hit the rate-limit check above.
+		if atomic.CompareAndSwapInt64(&d.lastPacketTime, lastSeen, now) {
+			return true
+		}
 	}
-	return false
 }
