@@ -23,29 +23,38 @@ COPY . .
 # Build main binary
 RUN go build -o mohawk-node ./cmd/mohawk-node
 
-FROM debian:bookworm-slim AS runner
+FROM ubuntu:22.04 AS runner
 
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    ca-certificates \
     libbpf-dev \
     clang \
     llvm \
+    gcc \
+    g++ \
     libelf-dev \
     iproute2 \
     sysstat \
-    ca-certificates \
     procps \
     curl \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+ENV PATH="/usr/local/go/bin:/go/bin:${PATH}"
+
+# Bring the Go toolchain into the runtime image so the stress harness can build
+# and run test binaries without depending on the host workspace.
+COPY --from=builder /usr/local/go /usr/local/go
 
 # Copy built binary and source from builder
 COPY --from=builder /app/mohawk-node ./mohawk-node
 COPY --from=builder /app/go.mod ./go.mod
 COPY --from=builder /app/go.sum ./go.sum
 COPY --from=builder /app/internal ./internal
-COPY --from=builder /cmd ./cmd
+COPY --from=builder /app/cmd ./cmd
 
 # Copy scripts
 COPY scripts/ ./scripts/
@@ -57,5 +66,3 @@ WORKDIR /app
 ENV GOOS=linux
 ENV CGO_ENABLED=1
 
-ENTRYPOINT ["/bin/bash"]
-CMD ["-c", "exec bash"]
