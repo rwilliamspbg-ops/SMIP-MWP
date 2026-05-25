@@ -26,7 +26,7 @@ RUN go build -o mohawk-node ./cmd/mohawk-node
 # Build test binaries
 RUN go test -c ./... -output=/app/test-binaries/ || true
 
-FROM debian:bookworm-slim AS runner
+FROM golang:1.25-bookworm AS runner
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
@@ -43,6 +43,8 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+ENV PATH="/usr/local/go/bin:/go/bin:${PATH}"
+
 # Copy binary and test binaries from builder
 COPY --from=builder /app/mohawk-node ./mohawk-node
 COPY --from=builder /app/test-binaries/ ./test-binaries/
@@ -53,7 +55,7 @@ RUN chmod +x ./scripts/*.sh
 
 # Copy performance analysis scripts
 COPY --from=builder /app/internal ./internal
-COPY --from=builder /cmd ./cmd
+COPY --from=builder /app/cmd ./cmd
 
 WORKDIR /app
 
