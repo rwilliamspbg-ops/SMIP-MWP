@@ -34,6 +34,16 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
+// MaxSequenceNumber is the highest sequence number a session will accept before
+// requiring a rekey. At 2^48 packets the XOR nonce still has 16 safe bits of
+// headroom, but we enforce a conservative limit well before AES-GCM nonce reuse.
+const MaxSequenceNumber uint64 = (1 << 48) - 1
+
+// ErrSessionExhausted is returned when a session's sequence counter exceeds
+// MaxSequenceNumber. The caller must rekey before sending further packets.
+var ErrSessionExhausted = errors.New("crypto: session sequence counter exhausted; rekey required")
+
+
 const (
 	// TagSize is the AEAD authentication tag length in bytes.
 	TagSize = 16
@@ -457,8 +467,21 @@ func (s *HybridSession) buildNonce(seq uint64) []byte {
 //
 // CRITICAL: the backing array of payload must have at least cap(payload)+TagSize bytes
 // available, because Seal() will extend the slice to append the tag.
+
+// aadFromSeq encodes the sequence number as 8-byte big-endian AAD,
+// binding the packet sequence number to the ciphertext so that headers
+// cannot be spliced across sessions or out of order without detection.
+func aadFromSeq(seq uint64) []byte {
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], seq)
+	return buf[:]
+}
+
 // This is the zero-copy hot path used by the AF_XDP forwarder.
 func (s *HybridSession) EncryptInPlace(payload []byte, seq uint64) error {
+	if seq > MaxSequenceNumber {
+		return ErrSessionExhausted
+	}
 	if len(payload) > (1 << 24) {
 		return ErrPayloadTooLarge
 	}
@@ -469,7 +492,7 @@ func (s *HybridSession) EncryptInPlace(payload []byte, seq uint64) error {
 	originalLen := len(payload)
 	// Extend slice to accommodate tag; Seal writes cipher + tag starting at dst[:0].
 	extended := payload[:originalLen+TagSize]
-	s.aead.Seal(extended[:0], nonce, payload[:originalLen], nil)
+	s.aead.Seal(extended[:0], nonce, payload[:originalLen], aadFromSeq(seq))
 	return nil
 }
 
@@ -477,6 +500,9 @@ func (s *HybridSession) EncryptInPlace(payload []byte, seq uint64) error {
 //
 // dst must have capacity for len(plaintext)+TagSize.
 func (s *HybridSession) EncryptTo(dst, plaintext []byte, seq uint64) ([]byte, error) {
+	if seq > MaxSequenceNumber {
+		return nil, ErrSessionExhausted
+	}
 	if len(plaintext) > (1 << 24) {
 		return nil, ErrPayloadTooLarge
 	}
@@ -485,7 +511,7 @@ func (s *HybridSession) EncryptTo(dst, plaintext []byte, seq uint64) ([]byte, er
 	}
 	out := dst[:len(plaintext)+TagSize]
 	nonce := s.buildNonce(seq)
-	s.aead.Seal(out[:0], nonce, plaintext, nil)
+	s.aead.Seal(out[:0], nonce, plaintext, aadFromSeq(seq))
 	return out, nil
 }
 
@@ -495,7 +521,7 @@ func (s *HybridSession) DecryptInPlace(payload []byte, seq uint64) ([]byte, erro
 		return nil, ErrCiphertextTooShort
 	}
 	nonce := s.buildNonce(seq)
-	plaintext, err := s.aead.Open(payload[:0], nonce, payload, nil)
+	plaintext, err := s.aead.Open(payload[:0], nonce, payload, aadFromSeq(seq))
 	if err != nil {
 		return nil, ErrAuthenticationFailed
 	}
