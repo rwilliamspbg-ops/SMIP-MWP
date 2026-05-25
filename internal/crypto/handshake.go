@@ -150,7 +150,10 @@ func (h *HybridKEX) Finish(responderMsg []byte) ([]byte, error) {
 	}
 
 	ct := responderMsg[x25519PubSize : x25519PubSize+mlkemCtSize]
-	mlkemSS := h.mlkemKey.Decapsulate(ct)
+	mlkemSS, err := h.mlkemKey.Decapsulate(ct)
+	if err != nil {
+		return nil, fmt.Errorf("kex: mlkem decapsulate: %w", err)
+	}
 
 	initiatorMLKEMPubBytes := h.mlkemPub.Bytes()
 	transcript := handshakeTranscript(h.x25519Pub.Bytes(), respX25519Pub.Bytes(), initiatorMLKEMPubBytes, ct)

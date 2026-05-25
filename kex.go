@@ -165,7 +165,10 @@ func (h *HybridKeyExchange) Finish(responderMsg []byte) ([]byte, error) {
 	// --- PQC: ML-KEM-768 decapsulation ---
 	var ctBytes [mlkem.CiphertextSize768]byte
 	copy(ctBytes[:], responderMsg[32:32+mlkem.CiphertextSize768])
-	mlkemSS := h.mlkemKey.Decapsulate(ctBytes[:])
+	mlkemSS, err := h.mlkemKey.Decapsulate(ctBytes[:])
+	if err != nil {
+		return nil, fmt.Errorf("kex: mlkem decapsulate: %w", err)
+	}
 
 	// Rebuild transcript using initiator's own mlkem pub + received ciphertext
 	initiatorMLKEMPubBytes := h.mlkemPub.Bytes()
