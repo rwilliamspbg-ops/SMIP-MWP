@@ -1,0 +1,38 @@
+goos: linux
+goarch: amd64
+pkg: smip-mwp/internal/crypto
+cpu: AMD EPYC 7763 64-Core Processor                
+BenchmarkNewHybridSession_Cached-4     	 2033996	       804.2 ns/op	    1376 B/op	       4 allocs/op
+BenchmarkNewHybridSession_Cached-4     	 1993275	       605.8 ns/op	    1376 B/op	       4 allocs/op
+BenchmarkNewHybridSession_Cached-4     	 2025487	       596.4 ns/op	    1376 B/op	       4 allocs/op
+BenchmarkNewHybridSession_Cached-4     	 1944828	       718.6 ns/op	    1376 B/op	       4 allocs/op
+BenchmarkNewHybridSession_Cached-4     	 1861160	       607.9 ns/op	    1376 B/op	       4 allocs/op
+BenchmarkNewHybridSession_Cached-4     	 2029554	       623.7 ns/op	    1376 B/op	       4 allocs/op
+BenchmarkNewHybridSession_Cached-4     	 1959255	       625.0 ns/op	    1376 B/op	       4 allocs/op
+BenchmarkNewHybridSession_Cached-4     	 1945444	       606.8 ns/op	    1376 B/op	       4 allocs/op
+BenchmarkNewHybridSession_Uncached-4   	 1535529	       927.8 ns/op	    1392 B/op	       5 allocs/op
+BenchmarkNewHybridSession_Uncached-4   	 1402185	       874.0 ns/op	    1392 B/op	       5 allocs/op
+BenchmarkNewHybridSession_Uncached-4   	 1395241	       928.3 ns/op	    1392 B/op	       5 allocs/op
+BenchmarkNewHybridSession_Uncached-4   	 1208196	       829.9 ns/op	    1392 B/op	       5 allocs/op
+BenchmarkNewHybridSession_Uncached-4   	 1000000	      1030 ns/op	    1392 B/op	       5 allocs/op
+BenchmarkNewHybridSession_Uncached-4   	 1267224	       943.2 ns/op	    1392 B/op	       5 allocs/op
+BenchmarkNewHybridSession_Uncached-4   	 1595323	       773.3 ns/op	    1392 B/op	       5 allocs/op
+BenchmarkNewHybridSession_Uncached-4   	 1578765	       812.7 ns/op	    1392 B/op	       5 allocs/op
+BenchmarkEncryptInPlace-4              	 1000000	      1046 ns/op	    1536 B/op	       1 allocs/op
+BenchmarkEncryptInPlace-4              	 1313946	       880.7 ns/op	    1536 B/op	       1 allocs/op
+BenchmarkEncryptInPlace-4              	 1311415	       853.6 ns/op	    1536 B/op	       1 allocs/op
+BenchmarkEncryptInPlace-4              	 1355726	      1004 ns/op	    1536 B/op	       1 allocs/op
+BenchmarkEncryptInPlace-4              	 1309611	       944.3 ns/op	    1536 B/op	       1 allocs/op
+BenchmarkEncryptInPlace-4              	 1341902	      1020 ns/op	    1536 B/op	       1 allocs/op
+BenchmarkEncryptInPlace-4              	 1346883	       909.7 ns/op	    1536 B/op	       1 allocs/op
+BenchmarkEncryptInPlace-4              	 1286322	       880.3 ns/op	    1536 B/op	       1 allocs/op
+BenchmarkDecryptInPlace-4              	 1858263	       731.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecryptInPlace-4              	 1714420	       682.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecryptInPlace-4              	 1817898	       740.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecryptInPlace-4              	 1813401	       671.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecryptInPlace-4              	 1853518	       672.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecryptInPlace-4              	 1535042	       681.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecryptInPlace-4              	 1729642	       663.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecryptInPlace-4              	 1816496	       743.9 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	smip-mwp/internal/crypto	67.118s
