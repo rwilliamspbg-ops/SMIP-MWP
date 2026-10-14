@@ -16,6 +16,16 @@ import (
 
 // BenchmarkEncryptInPlace measures the zero-copy encrypt hot path used by the
 // AF_XDP forwarder when payload buffers have capacity for the AEAD tag.
+//
+// The payload buffer is allocated once outside the timed loop and refilled each
+// iteration, so the number reflects the cipher rather than the allocator. The
+// previous version called make() inside the loop, which added ~335 ns of
+// allocation cost per iteration and swamped both the measurement and its
+// variance -- enough to read a 2.6x "regression" out of a run that had none.
+//
+// The forwarder reuses arena-backed buffers across frames, so measuring the
+// cipher alone is the representative case. BenchmarkEncryptInPlaceWithAlloc
+// covers the allocating caller explicitly.
 func BenchmarkEncryptInPlace(b *testing.B) {
 	combined := make([]byte, 64)
 	if _, err := rand.Read(combined); err != nil {
@@ -32,9 +42,40 @@ func BenchmarkEncryptInPlace(b *testing.B) {
 		payload[i] = byte(i)
 	}
 
+	// Reusable buffer with headroom for the AEAD tag, mirroring the forwarder's
+	// arena slots.
+	buf := make([]byte, len(payload), len(payload)+TagSize)
+
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		// allocate per-iteration to mimic independent frames and avoid reuse
+		copy(buf, payload)
+		if err := sess.EncryptInPlace(buf, uint64(i)); err != nil {
+			b.Fatalf("encrypt inplace: %v", err)
+		}
+	}
+}
+
+// BenchmarkEncryptInPlaceWithAlloc measures the same path for a caller that
+// allocates a fresh buffer per frame instead of reusing one.
+func BenchmarkEncryptInPlaceWithAlloc(b *testing.B) {
+	combined := make([]byte, 64)
+	if _, err := rand.Read(combined); err != nil {
+		b.Fatalf("rand: %v", err)
+	}
+	sess, err := NewHybridSession(combined, []byte("bench-session"))
+	if err != nil {
+		b.Fatalf("new session: %v", err)
+	}
+
+	payload := make([]byte, 1400)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
 		buf := make([]byte, len(payload), len(payload)+TagSize)
 		copy(buf, payload)
 		if err := sess.EncryptInPlace(buf, uint64(i)); err != nil {

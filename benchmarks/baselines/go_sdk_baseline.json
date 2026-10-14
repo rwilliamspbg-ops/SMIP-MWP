@@ -1,0 +1,14 @@
+{
+  "_meta": {
+    "host": "AMD Ryzen AI 7 350 w/ Radeon 860M (16 cores)",
+    "go_version": "go1.27.2",
+    "os": "windows/amd64",
+    "benchtime": "2s, count=3, median reported",
+    "recorded": "2026-10-14",
+    "note": "Keys carry the -16 core suffix so compare_benchmarks.py matches them. Previous baselines were recorded on 2-4 core GitHub runners and are not comparable in absolute terms."
+  },
+  "BenchmarkSwipScale-16": 0.2077,
+  "BenchmarkFlApplyUpdate_Aggregate-16": 13.01,
+  "BenchmarkFlApplyUpdate_Buffer-16": 9.792,
+  "BenchmarkFlApplyUpdate_SecondUpdate-16": 12.7
+}
