@@ -1,6 +1,15 @@
 {
-  "BenchmarkNewHybridSession_Cached-4": 630.05,
-  "BenchmarkNewHybridSession_Uncached-4": 830.0,
-  "BenchmarkEncryptInPlace-4": 908.05,
-  "BenchmarkDecryptInPlace-4": 670.55
+  "_meta": {
+    "host": "AMD Ryzen AI 7 350 w/ Radeon 860M (16 cores)",
+    "go_version": "go1.27.2",
+    "os": "windows/amd64",
+    "benchtime": "2s",
+    "recorded": "2026-10-14",
+    "note": "BenchmarkEncryptInPlace now reuses its payload buffer, matching the forwarder's arena-backed reuse, so it measures the cipher not the allocator. BenchmarkEncryptInPlaceWithAlloc covers the allocating caller. The previous 908ns baseline was inflated by a per-iteration make() and is not comparable."
+  },
+  "BenchmarkNewHybridSession_Cached-16": 383.9,
+  "BenchmarkNewHybridSession_Uncached-16": 721.0,
+  "BenchmarkEncryptInPlace-16": 340.1,
+  "BenchmarkEncryptInPlaceWithAlloc-16": 599.0,
+  "BenchmarkDecryptInPlace-16": 444.2
 }
