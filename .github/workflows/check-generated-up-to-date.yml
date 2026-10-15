@@ -1,1 +1,55 @@
+name: Check Generated Up To Date
 
+# Verifies the committed test vectors match what tools/leanvecgen produces.
+# This workflow file was empty (a single newline), so every run failed with
+# "workflow file issue" from 2026-05-25 onward while nothing actually checked
+# the generated artifacts. The companion generate-and-commit.yml regenerates
+# them on rust-rewrite/scaffold, but nothing enforced that main stays in sync.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check-generated:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Regenerate test vectors
+        run: go run -tags=tools ./tools/leanvecgen
+
+      - name: Compare against committed vectors
+        run: |
+          set -euo pipefail
+          # The generator writes with the platform line ending, so a Windows
+          # checkout of an LF-committed file shows as modified even when the
+          # bytes are semantically identical. Normalize both sides before
+          # comparing, otherwise this gate reports drift on every Windows run.
+          drift=0
+          for f in $(git ls-files 'internal/crypto/generated_*' 'internal/routing/generated_*'); do
+            git show "HEAD:$f" | tr -d '\r' > "/tmp/committed"
+            tr -d '\r' < "$f" > "/tmp/regenerated"
+            if ! cmp -s /tmp/committed /tmp/regenerated; then
+              echo "::error file=$f::generated file is stale; run 'go run -tags=tools ./tools/leanvecgen' and commit the result"
+              drift=1
+            fi
+          done
+          if [ "$drift" -ne 0 ]; then
+            echo "::error::Generated test vectors are out of date."
+            echo "Regenerate with: go run -tags=tools ./tools/leanvecgen"
+            exit 1
+          fi
+          echo "Generated test vectors are up to date."
